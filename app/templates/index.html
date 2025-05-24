@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 개인비서</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">AI 개인비서</h1>
+            <p class="text-gray-600">당신의 일상을 더 스마트하게</p>
+        </header>
+
+        <main class="bg-white rounded-lg shadow-lg p-6">
+            <div class="chat-container mb-6 h-96 overflow-y-auto" id="chatContainer">
+                <!-- 채팅 메시지들이 여기에 동적으로 추가됩니다 -->
+            </div>
+
+            <form id="questionForm" class="flex gap-2">
+                <input type="text" 
+                       id="userInput" 
+                       class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="무엇을 도와드릴까요?"
+                       required>
+                <button type="submit" 
+                        class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
+                    전송
+                </button>
+            </form>
+        </main>
+    </div>
+
+    <script>
+        document.getElementById('questionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const userInput = document.getElementById('userInput');
+            const chatContainer = document.getElementById('chatContainer');
+            const question = userInput.value;
+
+            // 사용자 메시지 추가
+            appendMessage('user', question);
+            userInput.value = '';
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question: question }),
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    appendMessage('assistant', data.response);
+                } else {
+                    appendMessage('error', data.message || '죄송합니다. 요청을 처리하는 중에 문제가 발생했습니다.');
+                }
+            } catch (error) {
+                appendMessage('error', '서버와의 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+            }
+        });
+
+        function appendMessage(type, content) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type} mb-4 p-4 rounded-lg ${
+                type === 'user' ? 'bg-blue-100 ml-12' : 'bg-gray-100 mr-12'
+            }`;
+            
+            messageDiv.innerHTML = `
+                <div class="flex items-start">
+                    <div class="flex-1">
+                        <div class="font-medium mb-1">${type === 'user' ? '나' : 'AI 비서'}</div>
+                        <div class="text-gray-700">${content}</div>
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html> 

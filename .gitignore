@@ -1,0 +1,46 @@
+# .env 파일 숨기기
+.env
+
+# Python 컴파일 파일
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 가상환경 폴더
+venv/
+ENV/
+
+# VSCode 설정파일 (사용 시)
+.vscode/
+.idea/
+
+# Mac 시스템 파일 (Mac 사용자라면)
+.DS_Store
+
+# 기타 임시 파일
+*.log
+
+# Project specific
+data/logs/*.json
+
+# Audio files
+app/static/audio/*
+!app/static/audio/.gitkeep
