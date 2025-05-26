@@ -1,49 +1,371 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="dark:bg-gray-900">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 개인비서</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200" id="body">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
         <header class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">AI 개인비서</h1>
-            <p class="text-gray-600">당신의 일상을 더 스마트하게</p>
+            <div class="flex justify-between items-center mb-4">
+                <button id="clearContext" 
+                        class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-trash"></i>
+                    <span>대화 초기화</span>
+                </button>
+                
+                <!-- AI 응답 길이 설정 버튼 -->
+                <button id="styleSettingsBtn" 
+                        class="px-3 py-1 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-sliders"></i>
+                    <span>응답 길이 설정</span>
+                </button>
+
+                <button id="exportChat" 
+                        class="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-download"></i>
+                    <span>대화 내보내기</span>
+                </button>
+                <!-- Export format dropdown -->
+                <select id="exportFormat" 
+                        class="px-2 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full">
+                    <option value="txt">TXT</option>
+                    <option value="pdf">PDF</option>
+                </select>
+                <!-- Search input -->
+                <div class="relative">
+                    <input type="text" 
+                           id="searchInput" 
+                           placeholder="대화 내용 검색..."
+                           class="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full w-40 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="searchButton"
+                            class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
+                        <i class="fas fa-search text-sm"></i>
+                    </button>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-800 dark:text-white transition-colors duration-200">AI 개인비서</h1>
+                <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <i class="fas fa-moon text-gray-600 dark:text-gray-300" id="themeIcon"></i>
+                </button>
+            </div>
+            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-200">당신의 일상을 더 스마트하게</p>
         </header>
 
-        <main class="bg-white rounded-lg shadow-lg p-6">
-            <div class="chat-container mb-6 h-96 overflow-y-auto" id="chatContainer">
-                <!-- 채팅 메시지들이 여기에 동적으로 추가됩니다 -->
+        <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-200">
+            <div class="chat-container mb-6 p-6 h-[500px] overflow-y-auto" id="chatContainer">
+                <!-- 시작 메시지 -->
+                <div class="message assistant mb-4 p-4 rounded-lg bg-gray-100 dark:bg-gray-700 mr-12">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0 mr-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                                <i class="fas fa-robot text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-medium mb-1 text-gray-800 dark:text-gray-200">AI 비서</div>
+                            <div class="text-gray-700 dark:text-gray-300">
+                                안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?<br>
+                                예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <form id="questionForm" class="flex gap-2">
-                <input type="text" 
-                       id="userInput" 
-                       class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                       placeholder="무엇을 도와드릴까요?"
-                       required>
-                <button type="submit" 
-                        class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
-                    전송
-                </button>
-            </form>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+                <form id="questionForm" class="flex gap-2">
+                    <div class="relative flex-1">
+                        <input type="text" 
+                               id="userInput" 
+                               class="w-full p-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                               placeholder="무엇을 도와드릴까요?"
+                               required>
+                        <div id="loadingIndicator" class="hidden absolute right-4 top-1/2 transform -translate-y-1/2">
+                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                        </div>
+                    </div>
+                    <button type="submit" 
+                            class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span>전송</span>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
         </main>
     </div>
 
+    <!-- Search results modal -->
+    <div id="searchModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">검색 결과</h3>
+                <button id="closeSearchModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="searchResults" class="space-y-4">
+                <!-- Search results will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 스타일 설정 모달 -->
+    <div id="styleSettingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">AI 응답 길이 설정</h3>
+                <button id="closeStyleSettings" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- 응답 길이 설정 -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        응답 길이 선택
+                    </label>
+                    <select id="responseLength" 
+                            class="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg">
+                        <option value="concise">간결하게 (2문장 이내)</option>
+                        <option value="normal" selected>일반적으로 (6문장 이내)</option>
+                        <option value="detailed">상세하게 (제한 없음)</option>
+                    </select>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400" id="responseLengthDescription">
+                        선택한 길이에 맞춰 AI가 답변합니다.
+                    </p>
+                </div>
+
+                <!-- 적용 버튼 -->
+                <button id="applyStyleSettings"
+                        class="w-full px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors mt-4">
+                    설정 적용
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // 다크모드 토글
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;  // <html> 요소 참조 추가
+        
+        function setTheme(isDark) {
+            if (isDark) {
+                htmlElement.classList.add('dark');  // <html> 요소에도 dark 클래스 추가
+                body.classList.add('dark');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            } else {
+                htmlElement.classList.remove('dark');  // <html> 요소에서 dark 클래스 제거
+                body.classList.remove('dark');
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+            }
+            localStorage.setItem('darkMode', isDark);
+        }
+
+        // 저장된 테마 설정 불러오기
+        const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+        setTheme(savedDarkMode);
+
+        themeToggle.addEventListener('click', () => {
+            const isDark = !body.classList.contains('dark');
+            setTheme(isDark);
+        });
+
+        // 채팅 기능
+        function appendMessage(type, content, audioUrl = null) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            const isDark = body.classList.contains('dark');
+            
+            messageDiv.className = `message ${type} mb-4 p-4 rounded-lg ${
+                type === 'user' 
+                    ? 'bg-blue-50 dark:bg-blue-900/30 ml-12' 
+                    : 'bg-gray-100 dark:bg-gray-700 mr-12'
+            }`;
+            
+            const icon = type === 'user' ? 'fa-user' : 'fa-robot';
+            const iconBg = type === 'user' ? 'bg-green-500' : 'bg-blue-500';
+            
+            let audioButton = '';
+            if (type === 'assistant' && audioUrl) {
+                audioButton = `
+                    <button onclick="toggleAudio(this, '${audioUrl}')" 
+                            class="mt-4 px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                        <i class="fas fa-play"></i>
+                        <span class="audio-text">음성으로 듣기</span>
+                    </button>
+                `;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 mr-3">
+                        <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center">
+                            <i class="fas ${icon} text-white"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        <div class="font-medium text-gray-800 dark:text-gray-200">
+                            ${type === 'user' ? '나' : 'AI 비서'}
+                        </div>
+                        <div class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">${content}</div>
+                        ${audioButton}
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 오디오 재생 관련 변수들
+        let currentAudio = null;
+        let currentButton = null;
+        
+        function toggleAudio(button, url) {
+            // 이전에 재생 중인 다른 오디오가 있다면 중지
+            if (currentAudio && currentButton && (currentButton !== button)) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                resetButton(currentButton);
+            }
+
+            // 같은 버튼을 눌렀을 때의 처리
+            if (currentButton === button && currentAudio) {
+                if (!currentAudio.paused) {
+                    // 재생 중지
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                    resetButton(button);
+                    currentAudio = null;
+                    currentButton = null;
+                } else {
+                    // 재생 시작
+                    currentAudio.play();
+                    updateButton(button, true);
+                }
+                return;
+            }
+
+            // 새로운 오디오 재생
+            if (!currentAudio || currentButton !== button) {
+                currentAudio = new Audio(url);
+                currentButton = button;
+                
+                currentAudio.play();
+                updateButton(button, true);
+                
+                // 재생이 끝나면 버튼 상태 초기화
+                currentAudio.onended = () => {
+                    resetButton(button);
+                    currentAudio = null;
+                    currentButton = null;
+                };
+            }
+        }
+        
+        function updateButton(button, isPlaying) {
+            const icon = button.querySelector('i');
+            const text = button.querySelector('.audio-text');
+            
+            if (isPlaying) {
+                icon.classList.remove('fa-play');
+                icon.classList.add('fa-stop');
+                text.textContent = '음성 중지';
+                button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                button.classList.add('bg-red-500', 'hover:bg-red-600');
+            } else {
+                resetButton(button);
+            }
+        }
+        
+        function resetButton(button) {
+            const icon = button.querySelector('i');
+            const text = button.querySelector('.audio-text');
+            
+            icon.classList.remove('fa-stop');
+            icon.classList.add('fa-play');
+            text.textContent = '음성으로 듣기';
+            button.classList.remove('bg-red-500', 'hover:bg-red-600');
+            button.classList.add('bg-blue-500', 'hover:bg-blue-600');
+        }
+
+        // 알림 권한 요청
+        async function requestNotificationPermission() {
+            if (!("Notification" in window)) {
+                console.log("이 브라우저는 알림을 지원하지 않습니다.");
+                return false;
+            }
+            
+            try {
+                const permission = await Notification.requestPermission();
+                return permission === "granted";
+            } catch (error) {
+                console.error("알림 권한 요청 중 오류 발생:", error);
+                return false;
+            }
+        }
+
+        // 알림 표시
+        function showNotification(message) {
+            if (!("Notification" in window)) {
+                alert(message);
+                return;
+            }
+            
+            if (Notification.permission === "granted") {
+                new Notification("AI 비서 알림", {
+                    body: message,
+                    icon: "/static/images/robot-icon.png"  // 알림 아이콘 (추가 필요)
+                });
+            } else {
+                alert(message);
+            }
+        }
+
+        // 알림 스케줄링
+        function scheduleNotification(delay, message) {
+            setTimeout(() => {
+                showNotification(message);
+            }, delay * 1000);  // delay는 초 단위
+        }
+
+        // 페이지 로드 시 알림 권한 요청
+        window.addEventListener('load', async () => {
+            await requestNotificationPermission();
+        });
+
         document.getElementById('questionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const userInput = document.getElementById('userInput');
-            const chatContainer = document.getElementById('chatContainer');
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const loadingIndicator = document.getElementById('loadingIndicator');
             const question = userInput.value;
+
+            // 입력창 비우기 및 버튼 비활성화
+            userInput.value = '';
+            submitButton.disabled = true;
+            loadingIndicator.classList.remove('hidden');
 
             // 사용자 메시지 추가
             appendMessage('user', question);
-            userInput.value = '';
 
             try {
                 const response = await fetch('/ask', {
@@ -57,34 +379,244 @@
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    appendMessage('assistant', data.response);
+                    appendMessage('assistant', data.response, data.audio_url);
+                    
+                    // 알림 처리
+                    if (data.notification) {
+                        scheduleNotification(data.notification.delay, data.notification.message);
+                        appendMessage('assistant', `네, ${data.notification.delay}초 뒤에 알려드리겠습니다.`);
+                    }
                 } else {
                     appendMessage('error', data.message || '죄송합니다. 요청을 처리하는 중에 문제가 발생했습니다.');
                 }
             } catch (error) {
                 appendMessage('error', '서버와의 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+            } finally {
+                // 버튼 활성화 및 로딩 표시 제거
+                submitButton.disabled = false;
+                loadingIndicator.classList.add('hidden');
+                userInput.focus();
             }
         });
 
-        function appendMessage(type, content) {
-            const chatContainer = document.getElementById('chatContainer');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${type} mb-4 p-4 rounded-lg ${
-                type === 'user' ? 'bg-blue-100 ml-12' : 'bg-gray-100 mr-12'
-            }`;
-            
-            messageDiv.innerHTML = `
-                <div class="flex items-start">
-                    <div class="flex-1">
-                        <div class="font-medium mb-1">${type === 'user' ? '나' : 'AI 비서'}</div>
-                        <div class="text-gray-700">${content}</div>
-                    </div>
-                </div>
-            `;
-            
-            chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+        // 대화 초기화 기능
+        document.getElementById('clearContext').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/clear_context', {
+                    method: 'POST',
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // 채팅 컨테이너 비우기
+                    const chatContainer = document.getElementById('chatContainer');
+                    chatContainer.innerHTML = '';
+                    
+                    // 시작 메시지 다시 추가
+                    appendMessage('assistant', '안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?\n예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"');
+                }
+            } catch (error) {
+                console.error('대화 초기화 중 오류 발생:', error);
+            }
+        });
+
+        // 대화 내보내기 기능
+        document.getElementById('exportChat').addEventListener('click', async () => {
+            try {
+                const format = document.getElementById('exportFormat').value;
+                const response = await fetch('/export_conversation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ format: format })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = response.headers.get('content-disposition').split('filename=')[1];
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    const data = await response.json();
+                    alert(data.message || '대화 내보내기에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('대화 내보내기 중 오류 발생:', error);
+                alert('대화 내보내기 중 오류가 발생했습니다.');
+            }
+        });
+
+        // 검색 기능
+        const searchModal = document.getElementById('searchModal');
+        const searchResults = document.getElementById('searchResults');
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const closeSearchModal = document.getElementById('closeSearchModal');
+
+        async function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+
+            try {
+                const response = await fetch('/search_conversation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    searchResults.innerHTML = '';
+                    if (data.count === 0) {
+                        searchResults.innerHTML = '<p class="text-gray-500 dark:text-gray-400">검색 결과가 없습니다.</p>';
+                    } else {
+                        data.results.forEach(result => {
+                            const resultDiv = document.createElement('div');
+                            resultDiv.className = 'p-4 bg-gray-50 dark:bg-gray-700 rounded-lg';
+                            
+                            let html = '';
+                            if (result.before) {
+                                html += `<div class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                    [${result.before.role === 'user' ? '사용자' : 'AI 비서'}] ${result.before.content}
+                                </div>`;
+                            }
+                            
+                            html += `<div class="font-medium text-gray-800 dark:text-white bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded">
+                                [${result.match.role === 'user' ? '사용자' : 'AI 비서'}] ${result.match.content}
+                            </div>`;
+                            
+                            if (result.after) {
+                                html += `<div class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                    [${result.after.role === 'user' ? '사용자' : 'AI 비서'}] ${result.after.content}
+                                </div>`;
+                            }
+                            
+                            resultDiv.innerHTML = html;
+                            searchResults.appendChild(resultDiv);
+                        });
+                    }
+                    searchModal.classList.remove('hidden');
+                } else {
+                    alert(data.message || '검색 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('검색 중 오류 발생:', error);
+                alert('검색 중 오류가 발생했습니다.');
+            }
         }
+
+        searchButton.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        closeSearchModal.addEventListener('click', () => {
+            searchModal.classList.add('hidden');
+        });
+
+        searchModal.addEventListener('click', (e) => {
+            if (e.target === searchModal) {
+                searchModal.classList.add('hidden');
+            }
+        });
+
+        // AI 스타일 설정 모달 관련
+        const styleSettingsModal = document.getElementById('styleSettingsModal');
+        const styleSettingsBtn = document.getElementById('styleSettingsBtn');
+        const closeStyleSettings = document.getElementById('closeStyleSettings');
+        const applyStyleSettings = document.getElementById('applyStyleSettings');
+        const responseLength = document.getElementById('responseLength');
+        const responseLengthDescription = document.getElementById('responseLengthDescription');
+
+        // 응답 길이 설명 업데이트
+        function updateResponseLengthDescription() {
+            const descriptions = {
+                'concise': '핵심 내용만 2문장 이내로 간결하게 답변합니다.',
+                'normal': '필요한 내용을 6문장 이내로 설명하는 일반적인 길이로 답변합니다.',
+                'detailed': '관련 정보와 예시를 포함하여 자세하게 설명합니다. (제한 없음)'
+            };
+            responseLengthDescription.textContent = descriptions[responseLength.value];
+        }
+
+        // 응답 길이 선택 변경 시 설명 업데이트
+        responseLength.addEventListener('change', updateResponseLengthDescription);
+
+        // 모달 열기/닫기
+        styleSettingsBtn.addEventListener('click', () => {
+            styleSettingsModal.classList.remove('hidden');
+            updateResponseLengthDescription();  // 모달 열 때 설명 업데이트
+        });
+
+        closeStyleSettings.addEventListener('click', () => {
+            styleSettingsModal.classList.add('hidden');
+        });
+
+        styleSettingsModal.addEventListener('click', (e) => {
+            if (e.target === styleSettingsModal) {
+                styleSettingsModal.classList.add('hidden');
+            }
+        });
+
+        // 스타일 설정 적용
+        applyStyleSettings.addEventListener('click', async () => {
+            const settings = {
+                response_length: responseLength.value
+            };
+            
+            try {
+                const response = await fetch('/update_ai_style', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    appendMessage('assistant', data.message);
+                    styleSettingsModal.classList.add('hidden');
+                    // 설정을 로컬 스토리지에 저장
+                    localStorage.setItem('aiStyleSettings', JSON.stringify(settings));
+                } else {
+                    appendMessage('error', data.message || 'AI 응답 길이 설정 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('AI 응답 길이 설정 중 오류 발생:', error);
+                appendMessage('error', 'AI 응답 길이 설정 중 오류가 발생했습니다.');
+            }
+        });
+
+        // 현재 스타일 설정 로드
+        async function loadCurrentStyleSettings() {
+            try {
+                const response = await fetch('/get_ai_style_settings');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const savedSettings = JSON.parse(localStorage.getItem('aiStyleSettings') || '{}');
+                    responseLength.value = savedSettings.response_length || 'normal';
+                    updateResponseLengthDescription();
+                }
+            } catch (error) {
+                console.error('응답 길이 설정 로드 중 오류 발생:', error);
+            }
+        }
+
+        // 페이지 로드 시 설정 로드
+        window.addEventListener('load', () => {
+            loadCurrentStyleSettings();
+        });
     </script>
 </body>
 </html> 
