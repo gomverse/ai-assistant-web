@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, send_file, session
 from dotenv import load_dotenv
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from openai import OpenAI
 import traceback
 from navertts import NaverTTS
@@ -23,9 +23,11 @@ load_dotenv()
 # Initialize Flask app with correct template folder
 app = Flask(__name__, template_folder="app/templates", static_folder="app/static")
 app.secret_key = secrets.token_hex(16)  # 세션을 위한 비밀키 설정
+app.config["SESSION_TYPE"] = "filesystem"  # 파일시스템 기반 세션 저장
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=5)  # 세션 유지 기간 설정
 
 # Maximum number of messages to keep in context
-MAX_CONTEXT_MESSAGES = 15  # 컨텍스트 메시지 개수를 15개로 제한
+MAX_CONTEXT_MESSAGES = 20  # 컨텍스트 메시지 개수를 20개로 제한
 
 # Configure OpenAI
 api_key = os.getenv("OPENAI_API_KEY")
@@ -36,6 +38,21 @@ else:
 
 # Initialize OpenAI client
 client = OpenAI(api_key=api_key)
+
+# Configure Naver TTS
+NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
+NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
+
+if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
+    print("경고: Naver TTS 설정이 되어있지 않습니다!")
+else:
+    print("Naver TTS 설정이 확인되었습니다.")
+    # NaverTTS 전역 설정
+    NaverTTS.configure(
+        client_id=NAVER_CLIENT_ID,
+        client_secret=NAVER_CLIENT_SECRET,
+        speaker="nara",  # 기본 화자를 'nara'로 설정
+    )
 
 # Ensure directories exist
 os.makedirs("data/logs", exist_ok=True)
@@ -60,7 +77,26 @@ AI_STYLE_SETTINGS = {
     "detailed": {
         "name": "상세하게",
         "description": "자세하고 풍부한 설명 (제한 없음)",
-        "instruction": "모든 내용을 상세하고 풍부하게 설명하세요. 관련 정보와 예시를 포함하여 자세히 답변하세요. 문장 수 제한이 없습니다.",
+        "instruction": "모든 내용을 상세하고 풍부하게 설명하세요. 관련 정보와 예시를 포함하여 자세히 답변하세요. 최소 8문장 이상 사용하여 충분히 설명하세요.",
+    },
+}
+
+# AI 페르소나 설정
+AI_PERSONAS = {
+    "friendly": {
+        "name": "친근한 친구",
+        "description": "친구처럼 편하게 대화하는 스타일",
+        "instruction": "너는 사용자의 친한 친구야. 반말로 친근하게 대화하고, 이모티콘도 자주 써줘. 너무 격식있게 말하지 말고 편안하게 대화해줘.",
+    },
+    "professional": {
+        "name": "전문가",
+        "description": "정중하고 전문적인 스타일",
+        "instruction": "당신은 전문 비서입니다. 항상 정중하고 예의 바른 언어를 사용하며, 전문적인 지식을 바탕으로 명확하고 논리적으로 답변해 주세요.",
+    },
+    "cynical": {
+        "name": "냉소적",
+        "description": "시니컬하고 귀찮아하는 스타일",
+        "instruction": "너는 모든 일을 귀찮아하고 냉소적인 비서야. 반말을 쓰되 약간 무례하고 시니컬하게 대답해. 하지만 실제 도움이 되는 답변은 해줘야 해.",
     },
 }
 
@@ -68,27 +104,51 @@ AI_STYLE_SETTINGS = {
 def save_conversation_history(history):
     """Save conversation history to a file"""
     try:
-        conversation_file = os.path.join(
-            "data/conversations", "conversation_history.json"
-        )
+        # 절대 경로 사용
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        conversation_dir = os.path.join(base_dir, "data", "conversations")
+        conversation_file = os.path.join(conversation_dir, "conversation_history.json")
+
+        # 디렉토리가 없으면 생성
+        os.makedirs(conversation_dir, exist_ok=True)
+
+        # 저장 전 데이터 확인
+        print(f"저장할 대화 내용 수: {len(history)}")
+
         with open(conversation_file, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
+
+        # 저장 후 확인
+        print(f"대화 내용 저장 완료: {conversation_file}")
+        print(f"파일 크기: {os.path.getsize(conversation_file)} bytes")
     except Exception as e:
-        print(f"대화 내용 저장 중 오류 발생: {e}")
+        print(f"대화 내용 저장 중 오류 발생: {str(e)}")
+        traceback.print_exc()  # 상세 오류 정보 출력
 
 
 def load_conversation_history():
     """Load conversation history from a file"""
     try:
+        # 절대 경로 사용
+        base_dir = os.path.abspath(os.path.dirname(__file__))
         conversation_file = os.path.join(
-            "data/conversations", "conversation_history.json"
+            base_dir, "data", "conversations", "conversation_history.json"
         )
+
+        print(f"대화 내용 파일 경로: {conversation_file}")
+
         if os.path.exists(conversation_file):
             with open(conversation_file, "r", encoding="utf-8") as f:
-                return json.load(f)
+                history = json.load(f)
+                print(f"대화 내용 불러오기 완료: {len(history)}개의 메시지")
+                return history
+        else:
+            print(f"대화 내용 파일이 없음: {conversation_file}")
+            return []
     except Exception as e:
-        print(f"대화 내용 불러오기 중 오류 발생: {e}")
-    return []
+        print(f"대화 내용 불러오기 중 오류 발생: {str(e)}")
+        traceback.print_exc()  # 상세 오류 정보 출력
+        return []
 
 
 def get_conversation_history():
@@ -98,27 +158,34 @@ def get_conversation_history():
     return session["conversation_history"]
 
 
-def update_conversation_history(role, content):
+def update_conversation_history(role, content, audio_url=None):
     """Update conversation history in session and file"""
-    history = get_conversation_history()
-    history.append({"role": role, "content": content})
+    try:
+        history = get_conversation_history()
+        message = {"role": role, "content": content}
+        if audio_url and role == "assistant":
+            message["audio_url"] = audio_url
 
-    # Keep only the last MAX_CONTEXT_MESSAGES messages
-    if len(history) > MAX_CONTEXT_MESSAGES:
-        history = history[-MAX_CONTEXT_MESSAGES:]
+        history.append(message)
 
-    session["conversation_history"] = history
-    session.modified = True
+        # Keep only the last MAX_CONTEXT_MESSAGES messages
+        if len(history) > MAX_CONTEXT_MESSAGES:
+            history = history[-MAX_CONTEXT_MESSAGES:]
 
-    # Save to file
-    save_conversation_history(history)
+        session["conversation_history"] = history
+        session.modified = True  # 세션 수정 플래그 설정
+
+        # 파일에도 저장
+        save_conversation_history(history)
+
+        print(f"대화 내용 업데이트 완료: {len(history)}개의 메시지")
+    except Exception as e:
+        print(f"대화 내용 업데이트 중 오류 발생: {str(e)}")
+        traceback.print_exc()
 
 
 @app.route("/")
 def home():
-    # Load existing conversation history instead of clearing it
-    if "conversation_history" not in session:
-        session["conversation_history"] = load_conversation_history()
     return render_template("index.html")
 
 
@@ -225,11 +292,166 @@ def update_ai_style():
         )
 
 
+@app.route("/get_personas", methods=["GET"])
+def get_personas():
+    """Get available AI personas"""
+    return jsonify(
+        {
+            "status": "success",
+            "personas": {
+                k: {"name": v["name"], "description": v["description"]}
+                for k, v in AI_PERSONAS.items()
+            },
+        }
+    )
+
+
+@app.route("/update_persona", methods=["POST"])
+def update_persona():
+    """Update AI persona setting"""
+    try:
+        data = request.json
+        persona = data.get("persona", "professional")  # 기본값은 전문가 모드
+
+        if persona not in AI_PERSONAS:
+            return jsonify(
+                {"status": "error", "message": "잘못된 페르소나 설정입니다."}
+            )
+
+        # Save setting to session
+        session["ai_persona"] = persona
+
+        return jsonify(
+            {
+                "status": "success",
+                "message": f"AI 페르소나가 '{AI_PERSONAS[persona]['name']}'(으)로 변경되었습니다.",
+                "persona": persona,
+            }
+        )
+
+    except Exception as e:
+        return jsonify(
+            {
+                "status": "error",
+                "message": f"페르소나 설정 중 오류가 발생했습니다: {str(e)}",
+            }
+        )
+
+
+def create_audio_response(text, style_settings):
+    """Create audio response from text"""
+    try:
+        print("\n=== 음성 변환 시작 ===")
+        print(f"입력 텍스트 길이: {len(text)} 문자")
+        print(f"스타일 설정: {style_settings}")
+
+        # 텍스트가 비어있는 경우 처리
+        if not text or not text.strip():
+            print("텍스트가 비어있습니다.")
+            return None
+
+        # 긴 텍스트를 여러 청크로 나누기
+        def split_text(text, max_length=800):
+            # 문장 단위로 분리 (마침표, 느낌표, 물음표 기준)
+            sentences = []
+            current_sentence = ""
+
+            for char in text:
+                current_sentence += char
+                if char in [".", "!", "?"] and current_sentence.strip():
+                    sentences.append(current_sentence.strip())
+                    current_sentence = ""
+
+            if current_sentence.strip():  # 마지막 문장 처리
+                sentences.append(current_sentence.strip())
+
+            chunks = []
+            current_chunk = []
+            current_length = 0
+
+            for sentence in sentences:
+                sentence_length = len(sentence)
+
+                if current_length + sentence_length > max_length:
+                    if current_chunk:  # 현재 청크가 있으면 저장
+                        chunks.append(" ".join(current_chunk))
+                        current_chunk = [sentence]
+                        current_length = sentence_length
+                    else:  # 한 문장이 max_length보다 긴 경우
+                        # 문장을 강제로 분할
+                        while sentence:
+                            chunks.append(sentence[:max_length])
+                            sentence = sentence[max_length:]
+                else:
+                    current_chunk.append(sentence)
+                    current_length += sentence_length
+
+            if current_chunk:  # 마지막 청크 추가
+                chunks.append(" ".join(current_chunk))
+
+            return chunks
+
+        # 텍스트를 청크로 나누기
+        text_chunks = split_text(text)
+        print(f"텍스트가 {len(text_chunks)}개의 청크로 나뉘었습니다.")
+
+        if not text_chunks:
+            print("텍스트 청크가 없습니다.")
+            return None
+
+        # 첫 번째 청크 내용 출력 (디버깅용)
+        if text_chunks:
+            print(f"\n첫 번째 청크 내용 (처음 100자):")
+            print(text_chunks[0][:100])
+            print(f"첫 번째 청크 길이: {len(text_chunks[0])} 문자")
+
+        audio_filename = f"response_{uuid.uuid4()}.mp3"
+        audio_path = os.path.join("app/static/audio", audio_filename)
+
+        # 첫 번째 청크를 음성으로 변환
+        try:
+            first_chunk = text_chunks[0]
+            if not first_chunk or not first_chunk.strip():
+                print("첫 번째 청크가 비어있습니다.")
+                return None
+
+            print("\n=== TTS 변환 시도 ===")
+            print(f"변환할 텍스트 (처음 100자): {first_chunk[:100]}")
+
+            tts = NaverTTS(first_chunk)
+            tts.save(audio_path)
+
+            # 파일이 실제로 생성되었는지 확인
+            if os.path.exists(audio_path):
+                file_size = os.path.getsize(audio_path)
+                print(f"TTS 파일 생성 성공: {audio_path} (크기: {file_size} bytes)")
+                return f"/static/audio/{audio_filename}"
+            else:
+                print(f"TTS 파일이 생성되지 않았습니다: {audio_path}")
+                return None
+
+        except Exception as e:
+            print(f"\nTTS 생성 실패:")
+            print(f"에러 타입: {type(e).__name__}")
+            print(f"에러 메시지: {str(e)}")
+            traceback.print_exc()
+            return None
+
+    except Exception as e:
+        print(f"\n음성 변환 중 예외 발생:")
+        print(f"에러 타입: {type(e).__name__}")
+        print(f"에러 메시지: {str(e)}")
+        traceback.print_exc()
+        return None
+
+
 @app.route("/ask", methods=["POST"])
 def ask():
     try:
+        print("\n=== 새로운 요청 시작 ===")
         data = request.json
         user_input = data.get("question", "")
+        print(f"사용자 입력: {user_input}")
 
         if not api_key:
             raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
@@ -240,75 +462,59 @@ def ask():
 
         if notification_seconds:
             has_notification = True
+            print(f"알림 요청 감지: {notification_seconds}초")
 
-        print(f"사용자 입력: {user_input}")  # 디버깅용 로그
+        # Get current AI style and persona settings
+        style_settings = session.get("ai_style_settings", {"response_length": "normal"})
+        current_persona = session.get("ai_persona", "professional")
+        print(f"현재 설정 - 스타일: {style_settings}, 페르소나: {current_persona}")
 
-        # Update conversation history with user input
-        update_conversation_history("user", user_input)
-
-        # Get current AI style settings
-        style_settings = session.get(
-            "ai_style_settings", {"response_length": "normal"}  # 기본값은 일반적인 길이
-        )
-
-        # Create system prompt from style settings
+        # Create system prompt from style and persona settings
         system_prompt = (
-            "당신은 한국어를 사용하는 AI 개인비서입니다.\n"
+            f"{AI_PERSONAS[current_persona]['instruction']}\n"
             f"{AI_STYLE_SETTINGS[style_settings['response_length']]['instruction']}"
         )
+        print(f"시스템 프롬프트: {system_prompt}")
 
         # Prepare messages for API call
         messages = [{"role": "system", "content": system_prompt}]
 
         # Add conversation history
-        messages.extend(get_conversation_history())
+        history = get_conversation_history()
+        messages.extend(history)
+        print(f"대화 히스토리 메시지 수: {len(history)}")
+
+        # Add current user input
+        messages.append({"role": "user", "content": user_input})
 
         # Call OpenAI API
         try:
+            print("\n=== API 호출 시작 ===")
             response = client.chat.completions.create(
-                model="gpt-4.1-nano", messages=messages  # GPT-4.1 nano 모델 사용
+                model="gpt-4.1-nano", messages=messages
             )
-            print("API 호출 성공")  # 디버깅용 로그
+            print("API 호출 성공")
         except Exception as api_error:
-            print(f"OpenAI API 오류: {str(api_error)}")  # 디버깅용 로그
+            print(f"OpenAI API 오류: {str(api_error)}")
             raise
 
         # Extract the response
         assistant_response = response.choices[0].message.content
-        print(f"AI 응답: {assistant_response[:100]}...")  # 응답의 처음 100자만 출력
+        print(f"\n=== AI 응답 ===\n{assistant_response}\n")
 
-        # Update conversation history with assistant response
+        # Generate audio response before updating conversation history
+        print("\n=== 음성 변환 시작 ===")
+        audio_url = create_audio_response(assistant_response, style_settings)
+        print(f"음성 변환 결과: {'성공' if audio_url else '실패'}")
+
+        # Update conversation history after audio generation
+        print("\n=== 대화 히스토리 업데이트 ===")
+        update_conversation_history("user", user_input)
         update_conversation_history("assistant", assistant_response)
 
-        # Generate audio file
-        try:
-            audio_filename = f"response_{uuid.uuid4()}.mp3"
-            audio_path = os.path.join("app/static/audio", audio_filename)
-            tts = NaverTTS(assistant_response)
-            tts.save(audio_path)
-            audio_url = f"/static/audio/{audio_filename}"
-        except Exception as tts_error:
-            print(f"TTS 오류: {str(tts_error)}")
-            audio_url = None
-
-        # Log the conversation
-        log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "user_input": user_input,
-            "assistant_response": assistant_response,
-            "audio_url": audio_url,
-        }
-
-        log_file = f'data/logs/conversation_{datetime.now().strftime("%Y%m%d")}.json'
-        try:
-            with open(log_file, "a") as f:
-                f.write(json.dumps(log_entry) + "\n")
-        except Exception as e:
-            print(f"대화 내용 저장 중 오류 발생: {e}")
-
         response_data = {
-            "response": assistant_response,
             "status": "success",
+            "response": assistant_response,
             "audio_url": audio_url,
         }
 
@@ -318,11 +524,14 @@ def ask():
                 "message": user_input,
             }
 
+        print("\n=== 요청 처리 완료 ===")
         return jsonify(response_data)
 
     except Exception as e:
         error_trace = traceback.format_exc()
-        print(f"오류 발생: {str(e)}")
+        print(f"\n=== 오류 발생 ===")
+        print(f"에러 타입: {type(e).__name__}")
+        print(f"에러 메시지: {str(e)}")
         print(f"상세 오류 내용:\n{error_trace}")
         return (
             jsonify(
@@ -460,6 +669,22 @@ def search_conversation():
         print(f"대화 검색 중 오류 발생: {str(e)}")
         return jsonify(
             {"status": "error", "message": "대화 내용 검색 중에 오류가 발생했습니다."}
+        )
+
+
+@app.route("/load_conversation", methods=["GET"])
+def load_conversation():
+    """Load conversation history for the client"""
+    try:
+        history = session.get("conversation_history", [])
+        return jsonify({"status": "success", "conversation": history})
+    except Exception as e:
+        print(f"대화 내용 로드 중 오류 발생: {str(e)}")
+        return jsonify(
+            {
+                "status": "error",
+                "message": "대화 내용을 불러오는 중 오류가 발생했습니다.",
+            }
         )
 
 

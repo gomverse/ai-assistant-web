@@ -19,14 +19,31 @@
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200" id="body">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
         <header class="text-center mb-8">
-            <div class="flex justify-between items-center mb-4">
+            <!-- 제목과 다크모드 설정 -->
+            <div class="flex justify-center items-center mb-2">
+                <h1 class="text-3xl font-bold text-gray-800 dark:text-white transition-colors duration-200">AI 개인비서</h1>
+                <button id="themeToggle" class="ml-4 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <i class="fas fa-moon text-gray-600 dark:text-gray-300" id="themeIcon"></i>
+                </button>
+            </div>
+            
+            <!-- 소제목 -->
+            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-200 mb-6 font-bold">당신의 일상을 더 스마트하게</p>
+            
+            <!-- 기능 버튼들 -->
+            <div class="flex justify-center items-center gap-4 flex-wrap">
+                <button id="personaSettingsBtn" 
+                        class="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-user-circle"></i>
+                    <span>AI 성격 설정</span>
+                </button>
+
                 <button id="clearContext" 
                         class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center gap-1 transition-colors">
                     <i class="fas fa-trash"></i>
                     <span>대화 초기화</span>
                 </button>
                 
-                <!-- AI 응답 길이 설정 버튼 -->
                 <button id="styleSettingsBtn" 
                         class="px-3 py-1 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-full flex items-center gap-1 transition-colors">
                     <i class="fas fa-sliders"></i>
@@ -38,12 +55,7 @@
                     <i class="fas fa-download"></i>
                     <span>대화 내보내기</span>
                 </button>
-                <!-- Export format dropdown -->
-                <select id="exportFormat" 
-                        class="px-2 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full">
-                    <option value="txt">TXT</option>
-                    <option value="pdf">PDF</option>
-                </select>
+
                 <!-- Search input -->
                 <div class="relative">
                     <input type="text" 
@@ -55,12 +67,7 @@
                         <i class="fas fa-search text-sm"></i>
                     </button>
                 </div>
-                <h1 class="text-3xl font-bold text-gray-800 dark:text-white transition-colors duration-200">AI 개인비서</h1>
-                <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                    <i class="fas fa-moon text-gray-600 dark:text-gray-300" id="themeIcon"></i>
-                </button>
             </div>
-            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-200">당신의 일상을 더 스마트하게</p>
         </header>
 
         <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-200">
@@ -130,29 +137,94 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            
             <div class="space-y-4">
-                <!-- 응답 길이 설정 -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        응답 길이 선택
-                    </label>
-                    <select id="responseLength" 
-                            class="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg">
-                        <option value="concise">간결하게 (2문장 이내)</option>
-                        <option value="normal" selected>일반적으로 (6문장 이내)</option>
-                        <option value="detailed">상세하게 (제한 없음)</option>
-                    </select>
-                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400" id="responseLengthDescription">
-                        선택한 길이에 맞춰 AI가 답변합니다.
-                    </p>
+                <p class="text-gray-600 dark:text-gray-300">응답 길이를 선택해주세요:</p>
+                <div class="flex flex-col gap-3">
+                    <button id="conciseStyle" class="style-btn px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">간결하게</span>
+                            <p class="text-sm text-green-100">핵심 내용만 2문장 이내로 전달</p>
+                        </div>
+                        <i class="fas fa-compress-alt text-xl"></i>
+                    </button>
+                    <button id="normalStyle" class="style-btn px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">일반적으로</span>
+                            <p class="text-sm text-blue-100">균형잡힌 일반적인 길이 (6문장 이내)</p>
+                        </div>
+                        <i class="fas fa-align-left text-xl"></i>
+                    </button>
+                    <button id="detailedStyle" class="style-btn px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">상세하게</span>
+                            <p class="text-sm text-purple-100">자세하고 풍부한 설명 (첫 부분만 음성 지원)</p>
+                        </div>
+                        <i class="fas fa-align-justify text-xl"></i>
+                    </button>
                 </div>
+            </div>
+        </div>
+    </div>
 
-                <!-- 적용 버튼 -->
-                <button id="applyStyleSettings"
-                        class="w-full px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors mt-4">
-                    설정 적용
+    <!-- Export format modal -->
+    <div id="exportModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">대화 내보내기</h3>
+                <button id="closeExportModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
                 </button>
+            </div>
+            <div class="space-y-4">
+                <p class="text-gray-600 dark:text-gray-300">파일 형식을 선택해주세요:</p>
+                <div class="flex flex-col gap-3">
+                    <button id="exportTXT" class="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-file-alt"></i>
+                        <span>TXT 파일로 내보내기</span>
+                    </button>
+                    <button id="exportPDF" class="px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-file-pdf"></i>
+                        <span>PDF 파일로 내보내기</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Persona settings modal -->
+    <div id="personaModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">AI 성격 설정</h3>
+                <button id="closePersonaModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <p class="text-gray-600 dark:text-gray-300">AI의 성격을 선택해주세요:</p>
+                <div class="flex flex-col gap-3">
+                    <button id="friendlyPersona" class="persona-btn px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">친근한 친구</span>
+                            <p class="text-sm text-blue-100">친구처럼 편하게 대화하는 스타일</p>
+                        </div>
+                        <i class="fas fa-smile text-xl"></i>
+                    </button>
+                    <button id="professionalPersona" class="persona-btn px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">전문가</span>
+                            <p class="text-sm text-gray-100">정중하고 전문적인 스타일</p>
+                        </div>
+                        <i class="fas fa-user-tie text-xl"></i>
+                    </button>
+                    <button id="cynicalPersona" class="persona-btn px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">냉소적</span>
+                            <p class="text-sm text-purple-100">시니컬하고 귀찮아하는 스타일</p>
+                        </div>
+                        <i class="fas fa-meh-rolling-eyes text-xl"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -421,9 +493,25 @@
         });
 
         // 대화 내보내기 기능
-        document.getElementById('exportChat').addEventListener('click', async () => {
+        const exportModal = document.getElementById('exportModal');
+        const closeExportModal = document.getElementById('closeExportModal');
+        
+        document.getElementById('exportChat').addEventListener('click', () => {
+            exportModal.classList.remove('hidden');
+        });
+        
+        closeExportModal.addEventListener('click', () => {
+            exportModal.classList.add('hidden');
+        });
+        
+        exportModal.addEventListener('click', (e) => {
+            if (e.target === exportModal) {
+                exportModal.classList.add('hidden');
+            }
+        });
+
+        async function exportConversation(format) {
             try {
-                const format = document.getElementById('exportFormat').value;
                 const response = await fetch('/export_conversation', {
                     method: 'POST',
                     headers: {
@@ -442,6 +530,7 @@
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
+                    exportModal.classList.add('hidden');
                 } else {
                     const data = await response.json();
                     alert(data.message || '대화 내보내기에 실패했습니다.');
@@ -450,7 +539,10 @@
                 console.error('대화 내보내기 중 오류 발생:', error);
                 alert('대화 내보내기 중 오류가 발생했습니다.');
             }
-        });
+        }
+
+        document.getElementById('exportTXT').addEventListener('click', () => exportConversation('txt'));
+        document.getElementById('exportPDF').addEventListener('click', () => exportConversation('pdf'));
 
         // 검색 기능
         const searchModal = document.getElementById('searchModal');
@@ -533,27 +625,9 @@
         const styleSettingsModal = document.getElementById('styleSettingsModal');
         const styleSettingsBtn = document.getElementById('styleSettingsBtn');
         const closeStyleSettings = document.getElementById('closeStyleSettings');
-        const applyStyleSettings = document.getElementById('applyStyleSettings');
-        const responseLength = document.getElementById('responseLength');
-        const responseLengthDescription = document.getElementById('responseLengthDescription');
 
-        // 응답 길이 설명 업데이트
-        function updateResponseLengthDescription() {
-            const descriptions = {
-                'concise': '핵심 내용만 2문장 이내로 간결하게 답변합니다.',
-                'normal': '필요한 내용을 6문장 이내로 설명하는 일반적인 길이로 답변합니다.',
-                'detailed': '관련 정보와 예시를 포함하여 자세하게 설명합니다. (제한 없음)'
-            };
-            responseLengthDescription.textContent = descriptions[responseLength.value];
-        }
-
-        // 응답 길이 선택 변경 시 설명 업데이트
-        responseLength.addEventListener('change', updateResponseLengthDescription);
-
-        // 모달 열기/닫기
         styleSettingsBtn.addEventListener('click', () => {
             styleSettingsModal.classList.remove('hidden');
-            updateResponseLengthDescription();  // 모달 열 때 설명 업데이트
         });
 
         closeStyleSettings.addEventListener('click', () => {
@@ -566,19 +640,14 @@
             }
         });
 
-        // 스타일 설정 적용
-        applyStyleSettings.addEventListener('click', async () => {
-            const settings = {
-                response_length: responseLength.value
-            };
-            
+        async function updateStyle(style) {
             try {
                 const response = await fetch('/update_ai_style', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(settings)
+                    body: JSON.stringify({ response_length: style })
                 });
                 
                 const data = await response.json();
@@ -586,8 +655,12 @@
                 if (data.status === 'success') {
                     appendMessage('assistant', data.message);
                     styleSettingsModal.classList.add('hidden');
-                    // 설정을 로컬 스토리지에 저장
-                    localStorage.setItem('aiStyleSettings', JSON.stringify(settings));
+                    
+                    // 현재 선택된 스타일 저장
+                    localStorage.setItem('responseLength', style);
+                    
+                    // 버튼 스타일 업데이트
+                    updateStyleButtonStyles(style);
                 } else {
                     appendMessage('error', data.message || 'AI 응답 길이 설정 중 오류가 발생했습니다.');
                 }
@@ -595,28 +668,97 @@
                 console.error('AI 응답 길이 설정 중 오류 발생:', error);
                 appendMessage('error', 'AI 응답 길이 설정 중 오류가 발생했습니다.');
             }
-        });
+        }
 
-        // 현재 스타일 설정 로드
-        async function loadCurrentStyleSettings() {
-            try {
-                const response = await fetch('/get_ai_style_settings');
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    const savedSettings = JSON.parse(localStorage.getItem('aiStyleSettings') || '{}');
-                    responseLength.value = savedSettings.response_length || 'normal';
-                    updateResponseLengthDescription();
-                }
-            } catch (error) {
-                console.error('응답 길이 설정 로드 중 오류 발생:', error);
+        function updateStyleButtonStyles(selectedStyle) {
+            document.querySelectorAll('.style-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-white');
+            });
+            
+            const selectedBtn = document.getElementById(`${selectedStyle}Style`);
+            if (selectedBtn) {
+                selectedBtn.classList.add('ring-2', 'ring-white');
             }
         }
 
-        // 페이지 로드 시 설정 로드
-        window.addEventListener('load', () => {
-            loadCurrentStyleSettings();
+        // 응답 길이 버튼에 이벤트 리스너 추가
+        document.getElementById('conciseStyle').addEventListener('click', () => updateStyle('concise'));
+        document.getElementById('normalStyle').addEventListener('click', () => updateStyle('normal'));
+        document.getElementById('detailedStyle').addEventListener('click', () => updateStyle('detailed'));
+
+        // 저장된 응답 길이 설정 로드
+        const savedStyle = localStorage.getItem('responseLength') || 'normal';
+        updateStyleButtonStyles(savedStyle);
+
+        // AI 페르소나 설정 관련
+        const personaModal = document.getElementById('personaModal');
+        const personaSettingsBtn = document.getElementById('personaSettingsBtn');
+        const closePersonaModal = document.getElementById('closePersonaModal');
+        
+        personaSettingsBtn.addEventListener('click', () => {
+            personaModal.classList.remove('hidden');
         });
+        
+        closePersonaModal.addEventListener('click', () => {
+            personaModal.classList.add('hidden');
+        });
+        
+        personaModal.addEventListener('click', (e) => {
+            if (e.target === personaModal) {
+                personaModal.classList.add('hidden');
+            }
+        });
+
+        // 페르소나 버튼 이벤트 리스너
+        async function updatePersona(persona) {
+            try {
+                const response = await fetch('/update_persona', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ persona: persona })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    appendMessage('assistant', data.message);
+                    personaModal.classList.add('hidden');
+                    
+                    // 현재 선택된 페르소나 저장
+                    localStorage.setItem('selectedPersona', persona);
+                    
+                    // 버튼 스타일 업데이트
+                    updatePersonaButtonStyles(persona);
+                } else {
+                    appendMessage('error', data.message || 'AI 성격 설정 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('AI 성격 설정 중 오류 발생:', error);
+                appendMessage('error', 'AI 성격 설정 중 오류가 발생했습니다.');
+            }
+        }
+
+        function updatePersonaButtonStyles(selectedPersona) {
+            document.querySelectorAll('.persona-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-white');
+            });
+            
+            const selectedBtn = document.getElementById(`${selectedPersona}Persona`);
+            if (selectedBtn) {
+                selectedBtn.classList.add('ring-2', 'ring-white');
+            }
+        }
+
+        // 페르소나 버튼에 이벤트 리스너 추가
+        document.getElementById('friendlyPersona').addEventListener('click', () => updatePersona('friendly'));
+        document.getElementById('professionalPersona').addEventListener('click', () => updatePersona('professional'));
+        document.getElementById('cynicalPersona').addEventListener('click', () => updatePersona('cynical'));
+
+        // 저장된 페르소나 설정 로드
+        const savedPersona = localStorage.getItem('selectedPersona') || 'professional';
+        updatePersonaButtonStyles(savedPersona);
     </script>
 </body>
 </html> 
