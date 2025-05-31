@@ -66,18 +66,18 @@ pdfmetrics.registerFont(TTFont("NanumGothic", "app/static/fonts/NanumGothic.ttf"
 AI_STYLE_SETTINGS = {
     "concise": {
         "name": "간결하게",
-        "description": "핵심 내용만 2문장 이내로 전달",
-        "instruction": "핵심 내용만 2문장 이내로 매우 간결하게 답변하세요. 절대로 2문장을 넘기지 마세요.",
+        "description": "핵심 내용만 1문장으로 전달",
+        "instruction": "핵심 내용만 1문장으로 매우 간결하게 답변하세요. 절대로 1문장을 넘기지 마세요.",
     },
     "normal": {
         "name": "일반적으로",
-        "description": "균형잡힌 일반적인 길이 (6문장 이내)",
-        "instruction": "필요한 내용을 6문장 이내로 설명하세요. 핵심 내용을 중심으로 균형있게 답변하되, 절대로 6문장을 넘기지 마세요.",
+        "description": "균형잡힌 일반적인 길이 (4문장 이내)",
+        "instruction": "필요한 내용을 4문장 이내로 설명하세요. 핵심 내용을 중심으로 균형있게 답변하되, 절대로 4문장을 넘기지 마세요.",
     },
     "detailed": {
         "name": "상세하게",
-        "description": "자세하고 풍부한 설명 (제한 없음)",
-        "instruction": "모든 내용을 상세하고 풍부하게 설명하세요. 관련 정보와 예시를 포함하여 자세히 답변하세요. 최소 8문장 이상 사용하여 충분히 설명하세요.",
+        "description": "자세하고 풍부한 설명 (7문장 이내)",
+        "instruction": "모든 내용을 상세하고 풍부하게 설명하세요. 관련 정보와 예시를 포함하여 자세히 답변하세요. 최소 4문장 이상, 최대 7문장 이내로 설명하세요.",
     },
 }
 
@@ -351,7 +351,7 @@ def create_audio_response(text, style_settings):
             return None
 
         # 긴 텍스트를 여러 청크로 나누기
-        def split_text(text, max_length=800):
+        def split_text(text, max_length=3000):  # 최대 길이를 3000자로 증가
             # 문장 단위로 분리 (마침표, 느낌표, 물음표 기준)
             sentences = []
             current_sentence = ""
@@ -365,31 +365,15 @@ def create_audio_response(text, style_settings):
             if current_sentence.strip():  # 마지막 문장 처리
                 sentences.append(current_sentence.strip())
 
-            chunks = []
-            current_chunk = []
-            current_length = 0
+            # 전체 텍스트를 하나의 청크로 처리
+            full_text = " ".join(sentences)
 
-            for sentence in sentences:
-                sentence_length = len(sentence)
+            # 만약 텍스트가 너무 길다면 앞부분만 사용
+            if len(full_text) > max_length:
+                print(f"텍스트가 너무 깁니다. 처음 {max_length}자만 사용합니다.")
+                return [full_text[:max_length]]
 
-                if current_length + sentence_length > max_length:
-                    if current_chunk:  # 현재 청크가 있으면 저장
-                        chunks.append(" ".join(current_chunk))
-                        current_chunk = [sentence]
-                        current_length = sentence_length
-                    else:  # 한 문장이 max_length보다 긴 경우
-                        # 문장을 강제로 분할
-                        while sentence:
-                            chunks.append(sentence[:max_length])
-                            sentence = sentence[max_length:]
-                else:
-                    current_chunk.append(sentence)
-                    current_length += sentence_length
-
-            if current_chunk:  # 마지막 청크 추가
-                chunks.append(" ".join(current_chunk))
-
-            return chunks
+            return [full_text]
 
         # 텍스트를 청크로 나누기
         text_chunks = split_text(text)
