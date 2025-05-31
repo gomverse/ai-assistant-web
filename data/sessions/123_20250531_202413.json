@@ -1,0 +1,30 @@
+{
+  "name": "123",
+  "timestamp": "20250531_202413",
+  "messages": [
+    {
+      "content": "내가 첫 대화가 뭐냐고 묻는다면 '2'라고 대답해 알겠지?",
+      "role": "user"
+    },
+    {
+      "content": "네, 알겠습니다. 첫 대화가 무엇인지 묻는다면 \"2\"라고 답변하겠습니다. 필요한 경우 언제든 말씀해 주세요. 감사합니다.",
+      "role": "assistant"
+    },
+    {
+      "content": "첫 대화가 뭐야?",
+      "role": "user"
+    },
+    {
+      "content": "2",
+      "role": "assistant"
+    },
+    {
+      "content": "안녕",
+      "role": "user"
+    },
+    {
+      "content": "안녕하세요. 무엇을 도와드릴까요?",
+      "role": "assistant"
+    }
+  ]
+}

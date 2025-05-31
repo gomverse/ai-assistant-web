@@ -672,5 +672,146 @@ def load_conversation():
         )
 
 
+@app.route("/save_session", methods=["POST"])
+def save_session():
+    """Save current conversation session with a name"""
+    try:
+        data = request.json
+        session_name = data.get("name")
+
+        if not session_name:
+            return jsonify({"status": "error", "message": "세션 이름이 필요합니다."})
+
+        # Get current conversation history
+        history = get_conversation_history()
+
+        # Create sessions directory if it doesn't exist
+        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
+        os.makedirs(sessions_dir, exist_ok=True)
+
+        # Save session with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{session_name}_{timestamp}.json"
+        filepath = os.path.join(sessions_dir, filename)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(
+                {"name": session_name, "timestamp": timestamp, "messages": history},
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        return jsonify(
+            {
+                "status": "success",
+                "message": f"대화 세션 '{session_name}'이(가) 저장되었습니다.",
+                "filename": filename,
+            }
+        )
+
+    except Exception as e:
+        print(f"세션 저장 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return jsonify(
+            {"status": "error", "message": "세션 저장 중 오류가 발생했습니다."}
+        )
+
+
+@app.route("/list_sessions", methods=["GET"])
+def list_sessions():
+    """List all saved conversation sessions"""
+    try:
+        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
+        if not os.path.exists(sessions_dir):
+            return jsonify({"status": "success", "sessions": []})
+
+        sessions = []
+        for filename in os.listdir(sessions_dir):
+            if filename.endswith(".json"):
+                filepath = os.path.join(sessions_dir, filename)
+                with open(filepath, "r", encoding="utf-8") as f:
+                    session_data = json.load(f)
+                    sessions.append(
+                        {
+                            "filename": filename,
+                            "name": session_data["name"],
+                            "timestamp": session_data["timestamp"],
+                            "message_count": len(session_data["messages"]),
+                        }
+                    )
+
+        # Sort sessions by timestamp (newest first)
+        sessions.sort(key=lambda x: x["timestamp"], reverse=True)
+
+        return jsonify({"status": "success", "sessions": sessions})
+
+    except Exception as e:
+        print(f"세션 목록 조회 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return jsonify(
+            {"status": "error", "message": "세션 목록 조회 중 오류가 발생했습니다."}
+        )
+
+
+@app.route("/load_session/<filename>", methods=["POST"])
+def load_session(filename):
+    """Load a saved conversation session"""
+    try:
+        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
+        filepath = os.path.join(sessions_dir, filename)
+
+        if not os.path.exists(filepath):
+            return jsonify(
+                {"status": "error", "message": "해당 세션을 찾을 수 없습니다."}
+            )
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            session_data = json.load(f)
+
+        # Update current session with loaded messages
+        session["conversation_history"] = session_data["messages"]
+        session.modified = True
+
+        return jsonify(
+            {
+                "status": "success",
+                "message": f"대화 세션 '{session_data['name']}'을(를) 불러왔습니다.",
+                "messages": session_data["messages"],
+            }
+        )
+
+    except Exception as e:
+        print(f"세션 불러오기 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return jsonify(
+            {"status": "error", "message": "세션 불러오기 중 오류가 발생했습니다."}
+        )
+
+
+@app.route("/delete_session/<filename>", methods=["POST"])
+def delete_session(filename):
+    """Delete a saved conversation session"""
+    try:
+        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
+        filepath = os.path.join(sessions_dir, filename)
+
+        if not os.path.exists(filepath):
+            return jsonify(
+                {"status": "error", "message": "해당 세션을 찾을 수 없습니다."}
+            )
+
+        os.remove(filepath)
+
+        return jsonify({"status": "success", "message": "대화 세션이 삭제되었습니다."})
+
+    except Exception as e:
+        print(f"세션 삭제 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return jsonify(
+            {"status": "error", "message": "세션 삭제 중 오류가 발생했습니다."}
+        )
+
+
 if __name__ == "__main__":
     app.run(debug=True)

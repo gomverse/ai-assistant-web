@@ -38,22 +38,28 @@
                     <span>AI 성격 설정</span>
                 </button>
 
-                <button id="clearContext" 
-                        class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-trash"></i>
-                    <span>대화 초기화</span>
-                </button>
-                
                 <button id="styleSettingsBtn" 
                         class="px-3 py-1 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-full flex items-center gap-1 transition-colors">
                     <i class="fas fa-sliders"></i>
                     <span>응답 길이 설정</span>
                 </button>
 
+                <button id="sessionManageBtn" 
+                        class="px-3 py-1 text-sm bg-yellow-500 hover:bg-yellow-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-save"></i>
+                    <span>대화 세션</span>
+                </button>
+
                 <button id="exportChat" 
                         class="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded-full flex items-center gap-1 transition-colors">
                     <i class="fas fa-download"></i>
                     <span>대화 내보내기</span>
+                </button>
+
+                <button id="clearContext" 
+                        class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-trash"></i>
+                    <span>대화 초기화</span>
                 </button>
 
                 <!-- Search input -->
@@ -229,6 +235,42 @@
         </div>
     </div>
 
+    <!-- Session management modal -->
+    <div id="sessionModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">대화 세션 관리</h3>
+                <button id="closeSessionModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Save session form -->
+            <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <h4 class="font-medium text-gray-800 dark:text-white mb-2">현재 대화 저장</h4>
+                <div class="flex gap-2">
+                    <input type="text" 
+                           id="sessionNameInput" 
+                           placeholder="세션 이름을 입력하세요"
+                           class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-200">
+                    <button id="saveSessionBtn" 
+                            class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2">
+                        <i class="fas fa-save"></i>
+                        <span>저장</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Sessions list -->
+            <div>
+                <h4 class="font-medium text-gray-800 dark:text-white mb-2">저장된 세션 목록</h4>
+                <div id="sessionsList" class="space-y-2 max-h-[400px] overflow-y-auto">
+                    <!-- Sessions will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 다크모드 토글
         const themeToggle = document.getElementById('themeToggle');
@@ -259,7 +301,18 @@
             setTheme(isDark);
         });
 
-        // 채팅 기능
+        // URL을 감지하고 클릭 가능한 링크로 변환하는 함수
+        function convertUrlsToLinks(text) {
+            // URL 정규식 수정: URL 끝에 한글이나 문장부호가 오는 경우를 제외
+            const urlRegex = /(https?:\/\/[a-zA-Z0-9\-._~:/?#\[\]@!$&'()*+,;=\%]+)/g;
+            return text.replace(urlRegex, url => {
+                // URL 끝에 있는 문장부호 제거
+                const cleanUrl = url.replace(/[.,;?!]$/, '');
+                return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500 underline">${cleanUrl}</a>`;
+            });
+        }
+
+        // 채팅 메시지 추가 함수 수정
         function appendMessage(type, content, audioUrl = null) {
             const chatContainer = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
@@ -285,6 +338,9 @@
                 `;
             }
             
+            // URL을 클릭 가능한 링크로 변환
+            const processedContent = convertUrlsToLinks(content);
+            
             messageDiv.innerHTML = `
                 <div class="flex items-start">
                     <div class="flex-shrink-0 mr-3">
@@ -296,7 +352,7 @@
                         <div class="font-medium text-gray-800 dark:text-gray-200">
                             ${type === 'user' ? '나' : 'AI 비서'}
                         </div>
-                        <div class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">${content}</div>
+                        <div class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">${processedContent}</div>
                         ${audioButton}
                     </div>
                 </div>
@@ -759,6 +815,186 @@
         // 저장된 페르소나 설정 로드
         const savedPersona = localStorage.getItem('selectedPersona') || 'professional';
         updatePersonaButtonStyles(savedPersona);
+
+        // 세션 관리 관련
+        const sessionModal = document.getElementById('sessionModal');
+        const sessionManageBtn = document.getElementById('sessionManageBtn');
+        const closeSessionModal = document.getElementById('closeSessionModal');
+        const sessionNameInput = document.getElementById('sessionNameInput');
+        const saveSessionBtn = document.getElementById('saveSessionBtn');
+        const sessionsList = document.getElementById('sessionsList');
+
+        // 세션 모달 열기/닫기
+        sessionManageBtn.addEventListener('click', () => {
+            sessionModal.classList.remove('hidden');
+            loadSessions();  // 세션 목록 로드
+        });
+
+        closeSessionModal.addEventListener('click', () => {
+            sessionModal.classList.add('hidden');
+        });
+
+        sessionModal.addEventListener('click', (e) => {
+            if (e.target === sessionModal) {
+                sessionModal.classList.add('hidden');
+            }
+        });
+
+        // 세션 저장
+        saveSessionBtn.addEventListener('click', async () => {
+            const sessionName = sessionNameInput.value.trim();
+            if (!sessionName) {
+                alert('세션 이름을 입력해주세요.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/save_session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: sessionName })
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    sessionNameInput.value = '';  // 입력 필드 초기화
+                    appendMessage('assistant', data.message);  // 성공 메시지 표시
+                    loadSessions();  // 세션 목록 새로고침
+                } else {
+                    alert(data.message || '세션 저장 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('세션 저장 중 오류 발생:', error);
+                alert('세션 저장 중 오류가 발생했습니다.');
+            }
+        });
+
+        // 세션 목록 로드
+        async function loadSessions() {
+            try {
+                const response = await fetch('/list_sessions');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    sessionsList.innerHTML = '';  // 목록 초기화
+                    
+                    if (data.sessions.length === 0) {
+                        sessionsList.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">저장된 세션이 없습니다.</p>';
+                        return;
+                    }
+                    
+                    data.sessions.forEach(session => {
+                        const sessionDiv = document.createElement('div');
+                        sessionDiv.className = 'p-4 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-between';
+                        
+                        // 타임스탬프 파싱 수정
+                        const year = session.timestamp.substring(0, 4);
+                        const month = session.timestamp.substring(4, 6);
+                        const day = session.timestamp.substring(6, 8);
+                        const hour = session.timestamp.substring(9, 11);
+                        const minute = session.timestamp.substring(11, 13);
+                        
+                        const timestamp = new Date(
+                            `${year}-${month}-${day}T${hour}:${minute}:00`
+                        );
+                        
+                        const formattedDate = timestamp.toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                        });
+                        
+                        sessionDiv.innerHTML = `
+                            <div class="flex-1">
+                                <h5 class="font-medium text-gray-800 dark:text-white">${session.name}</h5>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    ${formattedDate} · ${session.message_count}개의 메시지
+                                </p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="loadSession('${session.filename}')" 
+                                        class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                                    <i class="fas fa-folder-open"></i>
+                                </button>
+                                <button onclick="deleteSession('${session.filename}')"
+                                        class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                        
+                        sessionsList.appendChild(sessionDiv);
+                    });
+                } else {
+                    alert(data.message || '세션 목록 로드 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('세션 목록 로드 중 오류 발생:', error);
+                alert('세션 목록 로드 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 세션 불러오기
+        async function loadSession(filename) {
+            if (!confirm('현재 대화가 저장된 세션으로 대체됩니다. 계속하시겠습니까?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/load_session/${filename}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    // 채팅 컨테이너 비우기
+                    const chatContainer = document.getElementById('chatContainer');
+                    chatContainer.innerHTML = '';
+                    
+                    // 저장된 메시지들 추가
+                    data.messages.forEach(message => {
+                        appendMessage(message.role, message.content, message.audio_url);
+                    });
+                    
+                    appendMessage('assistant', data.message);  // 성공 메시지 표시
+                    sessionModal.classList.add('hidden');  // 모달 닫기
+                } else {
+                    alert(data.message || '세션 불러오기 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('세션 불러오기 중 오류 발생:', error);
+                alert('세션 불러오기 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 세션 삭제
+        async function deleteSession(filename) {
+            if (!confirm('이 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/delete_session/${filename}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    appendMessage('assistant', data.message);  // 성공 메시지 표시
+                    loadSessions();  // 세션 목록 새로고침
+                } else {
+                    alert(data.message || '세션 삭제 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('세션 삭제 중 오류 발생:', error);
+                alert('세션 삭제 중 오류가 발생했습니다.');
+            }
+        }
     </script>
 </body>
 </html> 
