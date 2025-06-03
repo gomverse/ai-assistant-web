@@ -37,7 +37,7 @@ else:
     print(f"API 키 확인: {api_key[:6]}...")  # API 키의 처음 6자리만 출력
 
 # Initialize OpenAI client
-client = OpenAI(api_key=api_key)
+client = OpenAI()  # API key will be read from environment variable
 
 # Configure Naver TTS
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
@@ -100,6 +100,31 @@ AI_PERSONAS = {
     },
 }
 
+# 세션 저장 디렉토리
+SESSIONS_DIR = "data/sessions"
+os.makedirs(SESSIONS_DIR, exist_ok=True)
+
+
+class ChatSession:
+    def __init__(self):
+        self.messages = []
+        self.context_size = 20  # 컨텍스트 크기
+
+    def add_message(self, role, content):
+        self.messages.append({"role": role, "content": content})
+        if len(self.messages) > self.context_size:
+            self.messages.pop(0)
+
+    def get_context(self):
+        return self.messages
+
+    def clear(self):
+        self.messages = []
+
+
+# 전역 채팅 세션 (비공개 모드가 아닐 때 사용)
+chat_session = ChatSession()
+
 
 def save_conversation_history(history):
     """Save conversation history to a file"""
@@ -131,11 +156,11 @@ def load_conversation_history():
     try:
         # 절대 경로 사용
         base_dir = os.path.abspath(os.path.dirname(__file__))
-        conversation_file = os.path.join(
-            base_dir, "data", "conversations", "conversation_history.json"
-        )
+        conversation_dir = os.path.join(base_dir, "data", "conversations")
+        conversation_file = os.path.join(conversation_dir, "conversation_history.json")
 
-        print(f"대화 내용 파일 경로: {conversation_file}")
+        # 디렉토리가 없으면 생성
+        os.makedirs(conversation_dir, exist_ok=True)
 
         if os.path.exists(conversation_file):
             with open(conversation_file, "r", encoding="utf-8") as f:
@@ -153,29 +178,53 @@ def load_conversation_history():
 
 def get_conversation_history():
     """Get conversation history from session or file"""
-    if "conversation_history" not in session:
-        session["conversation_history"] = load_conversation_history()
-    return session["conversation_history"]
+    try:
+        # Get from session first
+        history = session.get("conversation_history")
+
+        # If not in session, try to load from file
+        if history is None:
+            history = load_conversation_history()
+            session["conversation_history"] = history
+            session.modified = True
+
+            # Sync with global chat session
+            chat_session.clear()
+            for msg in history:
+                chat_session.add_message(msg["role"], msg["content"])
+
+        return history
+    except Exception as e:
+        print(f"대화 내용 조회 중 오류 발생: {str(e)}")
+        return []
 
 
 def update_conversation_history(role, content, audio_url=None):
     """Update conversation history in session and file"""
     try:
+        # Get current history
         history = get_conversation_history()
+
+        # Create new message
         message = {"role": role, "content": content}
         if audio_url and role == "assistant":
             message["audio_url"] = audio_url
 
+        # Add to history
         history.append(message)
 
         # Keep only the last MAX_CONTEXT_MESSAGES messages
         if len(history) > MAX_CONTEXT_MESSAGES:
             history = history[-MAX_CONTEXT_MESSAGES:]
 
+        # Update session
         session["conversation_history"] = history
-        session.modified = True  # 세션 수정 플래그 설정
+        session.modified = True
 
-        # 파일에도 저장
+        # Update global chat session
+        chat_session.add_message(role, content)
+
+        # Save to file
         save_conversation_history(history)
 
         print(f"대화 내용 업데이트 완료: {len(history)}개의 메시지")
@@ -192,11 +241,27 @@ def home():
 @app.route("/clear_context", methods=["POST"])
 def clear_context():
     """Clear conversation context from both session and file"""
-    session["conversation_history"] = []
-    save_conversation_history([])  # 파일에서도 대화 내용 삭제
-    return jsonify(
-        {"status": "success", "message": "대화 컨텍스트가 초기화되었습니다."}
-    )
+    try:
+        # Clear session
+        session["conversation_history"] = []
+
+        # Clear global chat session
+        chat_session.clear()
+
+        # Clear file system
+        save_conversation_history([])
+
+        # Force sync between session and file
+        session.modified = True
+
+        return jsonify(
+            {"status": "success", "message": "대화 컨텍스트가 초기화되었습니다."}
+        )
+    except Exception as e:
+        print(f"대화 내용 초기화 중 오류 발생: {str(e)}")
+        return jsonify(
+            {"status": "error", "message": "대화 내용 초기화 중 오류가 발생했습니다."}
+        )
 
 
 def parse_notification_time(text):
@@ -434,14 +499,16 @@ def ask():
     try:
         print("\n=== 새로운 요청 시작 ===")
         data = request.json
-        user_input = data.get("question", "")
-        print(f"사용자 입력: {user_input}")
+        question = data.get("question", "")
+        is_private = request.headers.get("X-Private-Mode") == "true"
+        print(f"사용자 입력: {question}")
+        print(f"비공개 모드: {is_private}")
 
         if not api_key:
             raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
 
         # Check for notification request
-        notification_seconds = parse_notification_time(user_input)
+        notification_seconds = parse_notification_time(question)
         has_notification = False
 
         if notification_seconds:
@@ -463,19 +530,20 @@ def ask():
         # Prepare messages for API call
         messages = [{"role": "system", "content": system_prompt}]
 
-        # Add conversation history
-        history = get_conversation_history()
-        messages.extend(history)
-        print(f"대화 히스토리 메시지 수: {len(history)}")
+        # Add conversation history only in non-private mode
+        if not is_private:
+            history = get_conversation_history()
+            messages.extend(history)
+            print(f"대화 히스토리 메시지 수: {len(history)}")
 
         # Add current user input
-        messages.append({"role": "user", "content": user_input})
+        messages.append({"role": "user", "content": question})
 
         # Call OpenAI API
         try:
             print("\n=== API 호출 시작 ===")
             response = client.chat.completions.create(
-                model="gpt-4.1-nano", messages=messages
+                model="gpt-3.5-turbo", messages=messages
             )
             print("API 호출 성공")
         except Exception as api_error:
@@ -491,21 +559,23 @@ def ask():
         audio_url = create_audio_response(assistant_response, style_settings)
         print(f"음성 변환 결과: {'성공' if audio_url else '실패'}")
 
-        # Update conversation history after audio generation
-        print("\n=== 대화 히스토리 업데이트 ===")
-        update_conversation_history("user", user_input)
-        update_conversation_history("assistant", assistant_response)
+        # Update conversation history only in non-private mode
+        if not is_private:
+            print("\n=== 대화 히스토리 업데이트 ===")
+            update_conversation_history("user", question)
+            update_conversation_history("assistant", assistant_response)
 
         response_data = {
             "status": "success",
             "response": assistant_response,
             "audio_url": audio_url,
+            "is_private": is_private,
         }
 
         if has_notification:
             response_data["notification"] = {
                 "delay": notification_seconds,
-                "message": user_input,
+                "message": question,
             }
 
         print("\n=== 요청 처리 완료 ===")
@@ -676,60 +746,56 @@ def load_conversation():
 def save_session():
     """Save current conversation session with a name"""
     try:
+        # 비공개 모드 체크
+        if request.headers.get("X-Private-Mode") == "true":
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "비공개 모드에서는 세션을 저장할 수 없습니다.",
+                }
+            )
+
         data = request.json
         session_name = data.get("name")
 
         if not session_name:
             return jsonify({"status": "error", "message": "세션 이름이 필요합니다."})
 
-        # Get current conversation history
-        history = get_conversation_history()
-
-        # Create sessions directory if it doesn't exist
-        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
-        os.makedirs(sessions_dir, exist_ok=True)
-
-        # Save session with timestamp
+        # 파일명 생성 (타임스탬프 포함)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{session_name}_{timestamp}.json"
-        filepath = os.path.join(sessions_dir, filename)
+        filepath = os.path.join(SESSIONS_DIR, filename)
+
+        # 세션 데이터 저장
+        session_data = {
+            "name": session_name,
+            "timestamp": timestamp,
+            "messages": get_conversation_history(),
+        }
 
         with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(
-                {"name": session_name, "timestamp": timestamp, "messages": history},
-                f,
-                ensure_ascii=False,
-                indent=2,
-            )
+            json.dump(session_data, f, ensure_ascii=False, indent=2)
 
         return jsonify(
             {
                 "status": "success",
-                "message": f"대화 세션 '{session_name}'이(가) 저장되었습니다.",
+                "message": "세션이 저장되었습니다.",
                 "filename": filename,
             }
         )
 
     except Exception as e:
-        print(f"세션 저장 중 오류 발생: {str(e)}")
-        traceback.print_exc()
-        return jsonify(
-            {"status": "error", "message": "세션 저장 중 오류가 발생했습니다."}
-        )
+        return jsonify({"status": "error", "message": str(e)})
 
 
 @app.route("/list_sessions", methods=["GET"])
 def list_sessions():
     """List all saved conversation sessions"""
     try:
-        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
-        if not os.path.exists(sessions_dir):
-            return jsonify({"status": "success", "sessions": []})
-
         sessions = []
-        for filename in os.listdir(sessions_dir):
+        for filename in os.listdir(SESSIONS_DIR):
             if filename.endswith(".json"):
-                filepath = os.path.join(sessions_dir, filename)
+                filepath = os.path.join(SESSIONS_DIR, filename)
                 with open(filepath, "r", encoding="utf-8") as f:
                     session_data = json.load(f)
                     sessions.append(
@@ -741,75 +807,127 @@ def list_sessions():
                         }
                     )
 
-        # Sort sessions by timestamp (newest first)
-        sessions.sort(key=lambda x: x["timestamp"], reverse=True)
-
-        return jsonify({"status": "success", "sessions": sessions})
+        return jsonify(
+            {
+                "status": "success",
+                "sessions": sorted(
+                    sessions, key=lambda x: x["timestamp"], reverse=True
+                ),
+            }
+        )
 
     except Exception as e:
-        print(f"세션 목록 조회 중 오류 발생: {str(e)}")
-        traceback.print_exc()
-        return jsonify(
-            {"status": "error", "message": "세션 목록 조회 중 오류가 발생했습니다."}
-        )
+        return jsonify({"status": "error", "message": str(e)})
 
 
 @app.route("/load_session/<filename>", methods=["POST"])
 def load_session(filename):
     """Load a saved conversation session"""
     try:
-        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
-        filepath = os.path.join(sessions_dir, filename)
+        # 비공개 모드 체크
+        if request.headers.get("X-Private-Mode") == "true":
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "비공개 모드에서는 세션을 불러올 수 없습니다.",
+                }
+            )
+
+        filepath = os.path.join(SESSIONS_DIR, filename)
 
         if not os.path.exists(filepath):
             return jsonify(
-                {"status": "error", "message": "해당 세션을 찾을 수 없습니다."}
+                {"status": "error", "message": "세션 파일을 찾을 수 없습니다."}
             )
 
         with open(filepath, "r", encoding="utf-8") as f:
             session_data = json.load(f)
 
-        # Update current session with loaded messages
-        session["conversation_history"] = session_data["messages"]
-        session.modified = True
+        # 현재 세션 업데이트
+        chat_session.clear()
+        for message in session_data["messages"]:
+            chat_session.add_message(message["role"], message["content"])
 
         return jsonify(
             {
                 "status": "success",
-                "message": f"대화 세션 '{session_data['name']}'을(를) 불러왔습니다.",
+                "message": "세션을 불러왔습니다.",
                 "messages": session_data["messages"],
             }
         )
 
     except Exception as e:
-        print(f"세션 불러오기 중 오류 발생: {str(e)}")
-        traceback.print_exc()
-        return jsonify(
-            {"status": "error", "message": "세션 불러오기 중 오류가 발생했습니다."}
-        )
+        return jsonify({"status": "error", "message": str(e)})
 
 
 @app.route("/delete_session/<filename>", methods=["POST"])
 def delete_session(filename):
     """Delete a saved conversation session"""
     try:
-        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
-        filepath = os.path.join(sessions_dir, filename)
+        filepath = os.path.join(SESSIONS_DIR, filename)
 
         if not os.path.exists(filepath):
             return jsonify(
-                {"status": "error", "message": "해당 세션을 찾을 수 없습니다."}
+                {"status": "error", "message": "세션 파일을 찾을 수 없습니다."}
             )
 
         os.remove(filepath)
 
-        return jsonify({"status": "success", "message": "대화 세션이 삭제되었습니다."})
+        return jsonify({"status": "success", "message": "세션이 삭제되었습니다."})
 
     except Exception as e:
-        print(f"세션 삭제 중 오류 발생: {str(e)}")
-        traceback.print_exc()
-        return jsonify(
-            {"status": "error", "message": "세션 삭제 중 오류가 발생했습니다."}
+        return jsonify({"status": "error", "message": str(e)})
+
+
+@app.route("/get_chat_history", methods=["GET"])
+def get_chat_history():
+    """Get the current chat history"""
+    try:
+        # 비공개 모드 체크
+        is_private = request.headers.get("X-Private-Mode") == "true"
+        if is_private:
+            # 비공개 모드에서는 빈 배열 반환
+            return jsonify({"status": "success", "messages": []})
+
+        # 일반 모드에서는 세션이나 파일에서 대화 내용 가져오기
+        messages = chat_session.get_context()
+
+        # 세션이 비어있다면 파일에서 불러오기
+        if not messages:
+            messages = load_conversation_history()
+            # 불러온 메시지를 chat_session에 추가
+            chat_session.clear()  # 기존 내용 초기화
+            for msg in messages:
+                chat_session.add_message(msg["role"], msg["content"])
+
+        return jsonify({"status": "success", "messages": messages})
+    except Exception as e:
+        print(f"대화 내용 조회 중 오류 발생: {str(e)}")
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "대화 내용을 불러오는 중 오류가 발생했습니다.",
+                }
+            ),
+            500,
+        )
+
+
+@app.route("/restore_session", methods=["POST"])
+def restore_session():
+    """Restore the normal mode session"""
+    try:
+        # 비공개 모드에서 일반 모드로 전환 시 세션 복원
+        messages = chat_session.get_context()
+        return jsonify({"status": "success", "messages": messages})
+    except Exception as e:
+        print(f"세션 복원 중 오류 발생: {str(e)}")
+        return (
+            jsonify(
+                {"status": "error", "message": "세션 복원 중 오류가 발생했습니다."}
+            ),
+            500,
         )
 
 

@@ -15,6 +15,135 @@
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/speech.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/private-mode.js') }}" defer></script>
+    <style>
+        @keyframes pulseWave {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes soundWave {
+            0% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+            }
+        }
+
+        .voice-btn-container {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .voice-btn {
+            width: 44px;
+            height: 44px;
+            background: #3B82F6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .voice-btn:hover {
+            background: #2563EB;
+        }
+
+        .voice-btn i {
+            color: white;
+            font-size: 20px;
+        }
+
+        .voice-btn.listening {
+            animation: pulseWave 2s infinite;
+        }
+
+        .voice-waves {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+        }
+
+        .listening .voice-waves {
+            opacity: 1;
+        }
+
+        .voice-wave {
+            position: relative;
+            background: rgba(255, 255, 255, 0.4);
+            width: 3px;
+            height: 20px;
+            animation: waveAnimation 1s infinite;
+            transition: height 0.2s ease;
+        }
+
+        @keyframes waveAnimation {
+            0% { height: 6px; }
+            50% { height: 20px; }
+            100% { height: 6px; }
+        }
+
+        /* 비공개 모드 스타일 */
+        .private-mode-active {
+            background: #DC2626 !important;
+        }
+
+        .private-mode-active .private-mode-indicator {
+            transform: translateX(100%);
+        }
+
+        /* 비공개 모드일 때 내보내기/저장 버튼 비활성화 스타일 */
+        .private-mode-on .disabled-in-private {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* 비공개 모드 알림 배너 */
+        .private-mode-banner {
+            display: none;
+            background-color: #DC2626;
+            color: white;
+            text-align: center;
+            padding: 0.5rem;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+        }
+
+        .private-mode-on .private-mode-banner {
+            display: block;
+        }
+    </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200" id="body">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
@@ -32,6 +161,15 @@
             
             <!-- 기능 버튼들 -->
             <div class="flex justify-center items-center gap-4 flex-wrap">
+                <button id="privateMode" 
+                        class="px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-eye-slash"></i>
+                    <span>비공개 모드</span>
+                    <div class="relative ml-1 w-8 h-4 bg-gray-400 rounded-full">
+                        <div class="private-mode-indicator absolute left-0 top-0 w-4 h-4 bg-white rounded-full shadow transition-transform"></div>
+                    </div>
+                </button>
+
                 <button id="personaSettingsBtn" 
                         class="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center gap-1 transition-colors">
                     <i class="fas fa-user-circle"></i>
@@ -98,13 +236,27 @@
             </div>
 
             <div class="p-4 border-t border-gray-200 dark:border-gray-700">
-                <form id="questionForm" class="flex gap-2">
+                <form id="questionForm" class="flex gap-2" onsubmit="return handleFormSubmit(event)">
                     <div class="relative flex-1">
                         <input type="text" 
-                               id="userInput" 
+                               id="user-input" 
                                class="w-full p-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                                placeholder="무엇을 도와드릴까요?"
                                required>
+                        <div class="voice-btn-container">
+                            <button type="button" 
+                                    id="voice-input-btn"
+                                    class="voice-btn">
+                                <i class="fas fa-microphone"></i>
+                                <div class="voice-waves">
+                                    <div class="voice-wave" style="animation-delay: -0.4s;"></div>
+                                    <div class="voice-wave" style="animation-delay: -0.3s;"></div>
+                                    <div class="voice-wave" style="animation-delay: -0.2s;"></div>
+                                    <div class="voice-wave" style="animation-delay: -0.1s;"></div>
+                                    <div class="voice-wave"></div>
+                                </div>
+                            </button>
+                        </div>
                         <div id="loadingIndicator" class="hidden absolute right-4 top-1/2 transform -translate-y-1/2">
                             <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
                         </div>
@@ -271,52 +423,41 @@
         </div>
     </div>
 
+    <!-- 비공개 모드 배너 -->
+    <div class="private-mode-banner">
+        <i class="fas fa-eye-slash mr-2"></i>
+        비공개 모드가 활성화되었습니다. 대화 내용이 저장되지 않습니다.
+    </div>
+
     <script>
+        // DOM 요소 참조를 전역 변수로 선언
+        const bodyElement = document.body;
+        const htmlElement = document.documentElement;
+
         // 다크모드 토글
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
-        const htmlElement = document.documentElement;  // <html> 요소 참조 추가
         
         function setTheme(isDark) {
             if (isDark) {
-                htmlElement.classList.add('dark');  // <html> 요소에도 dark 클래스 추가
-                body.classList.add('dark');
+                htmlElement.classList.add('dark');
+                bodyElement.classList.add('dark');
                 themeIcon.classList.remove('fa-moon');
                 themeIcon.classList.add('fa-sun');
             } else {
-                htmlElement.classList.remove('dark');  // <html> 요소에서 dark 클래스 제거
-                body.classList.remove('dark');
+                htmlElement.classList.remove('dark');
+                bodyElement.classList.remove('dark');
                 themeIcon.classList.remove('fa-sun');
                 themeIcon.classList.add('fa-moon');
             }
             localStorage.setItem('darkMode', isDark);
         }
 
-        // 저장된 테마 설정 불러오기
-        const savedDarkMode = localStorage.getItem('darkMode') === 'true';
-        setTheme(savedDarkMode);
-
-        themeToggle.addEventListener('click', () => {
-            const isDark = !body.classList.contains('dark');
-            setTheme(isDark);
-        });
-
-        // URL을 감지하고 클릭 가능한 링크로 변환하는 함수
-        function convertUrlsToLinks(text) {
-            // URL 정규식 수정: URL 끝에 한글이나 문장부호가 오는 경우를 제외
-            const urlRegex = /(https?:\/\/[a-zA-Z0-9\-._~:/?#\[\]@!$&'()*+,;=\%]+)/g;
-            return text.replace(urlRegex, url => {
-                // URL 끝에 있는 문장부호 제거
-                const cleanUrl = url.replace(/[.,;?!]$/, '');
-                return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500 underline">${cleanUrl}</a>`;
-            });
-        }
-
         // 채팅 메시지 추가 함수 수정
         function appendMessage(type, content, audioUrl = null) {
             const chatContainer = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
-            const isDark = body.classList.contains('dark');
+            const isDark = bodyElement.classList.contains('dark');
             
             messageDiv.className = `message ${type} mb-4 p-4 rounded-lg ${
                 type === 'user' 
@@ -360,6 +501,239 @@
             
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 전역 폼 제출 처리 함수
+        function handleFormSubmit(e) {
+            console.log('Form submission started');
+            if (e) {
+                e.preventDefault();
+                console.log('Default form submission prevented');
+            }
+            
+            const userInput = document.getElementById('user-input');
+            const form = document.getElementById('questionForm');
+            const submitButton = form.querySelector('button[type="submit"]');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const question = userInput.value;
+
+            if (!question.trim()) {
+                console.log('Empty question, submission cancelled');
+                return false;
+            }
+
+            console.log('Processing question:', question);
+            userInput.value = '';
+            submitButton.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+
+            // 사용자 메시지 추가
+            appendMessage('user', question);
+
+            console.log('Sending request to server...');
+            fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Private-Mode': isPrivateMode ? 'true' : 'false'
+                },
+                body: JSON.stringify({ question: question })
+            })
+            .then(response => {
+                console.log('Received response from server');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Parsed response data:', data);
+                if (data.status === 'success') {
+                    appendMessage('assistant', data.response, data.audio_url);
+                    
+                    if (data.notification) {
+                        console.log('Setting up notification:', data.notification);
+                        scheduleNotification(data.notification.delay, data.notification.message);
+                        appendMessage('assistant', `네, ${data.notification.delay}초 뒤에 알려드리겠습니다.`);
+                    }
+                } else {
+                    console.error('Server returned error:', data.message);
+                    appendMessage('error', data.message || '죄송합니다. 요청을 처리하는 중에 문제가 발생했습니다.');
+                }
+            })
+            .catch(error => {
+                console.error('Request failed:', error);
+                appendMessage('error', '서버와의 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+            })
+            .finally(() => {
+                console.log('Request completed, resetting UI');
+                submitButton.disabled = false;
+                loadingIndicator.classList.add('hidden');
+                userInput.focus();
+            });
+
+            return false;
+        }
+
+        // 일반 모드의 대화 내용을 임시 저장할 변수
+        let normalModeChatHistory = null;
+
+        function togglePrivateMode() {
+            const wasPrivate = isPrivateMode;
+            isPrivateMode = !isPrivateMode;
+            bodyElement.classList.toggle('private-mode-on');
+            privateModeBtn.classList.toggle('private-mode-active');
+
+            // 비공개 모드 상태 저장
+            sessionStorage.setItem('privateMode', isPrivateMode);
+
+            const chatContainer = document.getElementById('chatContainer');
+            
+            if (isPrivateMode) {
+                // 일반 모드의 대화 내용 저장
+                normalModeChatHistory = chatContainer.innerHTML;
+                
+                // 채팅 컨테이너 비우기
+                chatContainer.innerHTML = '';
+                
+                // 비공개 모드 시작 메시지 표시
+                appendMessage('assistant', '비공개 모드가 활성화되었습니다. 이 모드에서는:\n- 대화 내용이 서버에 저장되지 않습니다.\n- 브라우저를 닫으면 모든 데이터가 삭제됩니다.\n- 대화 내용 저장 및 내보내기가 비활성화됩니다.');
+                
+                // 새로운 세션 시작
+                fetch('/clear_context', {
+                    method: 'POST',
+                    headers: {
+                        'X-Private-Mode': 'true'
+                    }
+                });
+            } else {
+                // 비공개 모드 대화 내용 제거
+                chatContainer.innerHTML = '';
+                
+                // 일반 모드의 대화 내용 복원
+                if (normalModeChatHistory) {
+                    chatContainer.innerHTML = normalModeChatHistory;
+                }
+                
+                // 일반 모드로 전환 메시지 표시
+                appendMessage('assistant', '일반 모드로 전환되었습니다.');
+                
+                // 일반 세션 복원
+                fetch('/restore_session', {
+                    method: 'POST'
+                });
+            }
+
+            // 버튼 비활성화/활성화
+            const exportBtn = document.getElementById('exportChat');
+            const sessionBtn = document.getElementById('sessionManageBtn');
+            
+            if (isPrivateMode) {
+                exportBtn.classList.add('disabled-in-private');
+                sessionBtn.classList.add('disabled-in-private');
+                exportBtn.setAttribute('disabled', 'disabled');
+                sessionBtn.setAttribute('disabled', 'disabled');
+            } else {
+                exportBtn.classList.remove('disabled-in-private');
+                sessionBtn.classList.remove('disabled-in-private');
+                exportBtn.removeAttribute('disabled');
+                sessionBtn.removeAttribute('disabled');
+            }
+        }
+
+        // 페이지 로드 시 대화 내용 복원
+        async function loadChatHistory() {
+            console.log('Loading chat history...');
+            try {
+                const response = await fetch('/get_chat_history', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Received chat history:', data);
+                
+                if (data.status === 'success' && data.messages && data.messages.length > 0) {
+                    console.log('Restoring', data.messages.length, 'messages');
+                    const chatContainer = document.getElementById('chatContainer');
+                    chatContainer.innerHTML = ''; // 기존 내용 제거
+                    
+                    // 각 메시지 복원
+                    data.messages.forEach(msg => {
+                        appendMessage(msg.role, msg.content, msg.audio_url);
+                    });
+                } else {
+                    console.log('No chat history to restore');
+                    // 시작 메시지 표시
+                    appendMessage('assistant', '안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?\n예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"');
+                }
+            } catch (error) {
+                console.error('Failed to load chat history:', error);
+                // 오류 발생 시 시작 메시지 표시
+                appendMessage('assistant', '안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?\n예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"');
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('Page loaded, initializing...');
+            
+            // 저장된 테마 설정 불러오기
+            const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+            setTheme(savedDarkMode);
+
+            // 테마 토글 이벤트 리스너 설정
+            themeToggle.addEventListener('click', () => {
+                const isDark = !bodyElement.classList.contains('dark');
+                setTheme(isDark);
+            });
+
+            // 폼 이벤트 핸들러 설정
+            const form = document.getElementById('questionForm');
+            if (form) {
+                form.addEventListener('submit', handleFormSubmit);
+                console.log('Form handler attached');
+            } else {
+                console.error('Question form not found!');
+            }
+
+            // 비공개 모드 상태 복원
+            const savedPrivateMode = sessionStorage.getItem('privateMode') === 'true';
+            if (savedPrivateMode) {
+                console.log('Restoring private mode');
+                isPrivateMode = true;
+                bodyElement.classList.add('private-mode-on');
+                privateModeBtn.classList.add('private-mode-active');
+                
+                // 비공개 모드 UI 업데이트
+                const exportBtn = document.getElementById('exportChat');
+                const sessionBtn = document.getElementById('sessionManageBtn');
+                exportBtn.classList.add('disabled-in-private');
+                sessionBtn.classList.add('disabled-in-private');
+                exportBtn.setAttribute('disabled', 'disabled');
+                sessionBtn.setAttribute('disabled', 'disabled');
+            } else {
+                console.log('Loading normal mode chat history');
+                // 일반 모드일 때만 대화 내용 복원
+                await loadChatHistory();
+            }
+        });
+
+        // URL을 감지하고 클릭 가능한 링크로 변환하는 함수
+        function convertUrlsToLinks(text) {
+            // URL 정규식 수정: URL 끝에 한글이나 문장부호가 오는 경우를 제외
+            const urlRegex = /(https?:\/\/[a-zA-Z0-9\-._~:/?#\[\]@!$&'()*+,;=\%]+)/g;
+            return text.replace(urlRegex, url => {
+                // URL 끝에 있는 문장부호 제거
+                const cleanUrl = url.replace(/[.,;?!]$/, '');
+                return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500 underline">${cleanUrl}</a>`;
+            });
         }
 
         // 오디오 재생 관련 변수들
@@ -479,53 +853,11 @@
             await requestNotificationPermission();
         });
 
-        document.getElementById('questionForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const userInput = document.getElementById('userInput');
-            const submitButton = e.target.querySelector('button[type="submit"]');
-            const loadingIndicator = document.getElementById('loadingIndicator');
-            const question = userInput.value;
+        // 비공개 모드 관리
+        const privateModeBtn = document.getElementById('privateMode');
+        let isPrivateMode = false;
 
-            // 입력창 비우기 및 버튼 비활성화
-            userInput.value = '';
-            submitButton.disabled = true;
-            loadingIndicator.classList.remove('hidden');
-
-            // 사용자 메시지 추가
-            appendMessage('user', question);
-
-            try {
-                const response = await fetch('/ask', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ question: question }),
-                });
-
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    appendMessage('assistant', data.response, data.audio_url);
-                    
-                    // 알림 처리
-                    if (data.notification) {
-                        scheduleNotification(data.notification.delay, data.notification.message);
-                        appendMessage('assistant', `네, ${data.notification.delay}초 뒤에 알려드리겠습니다.`);
-                    }
-                } else {
-                    appendMessage('error', data.message || '죄송합니다. 요청을 처리하는 중에 문제가 발생했습니다.');
-                }
-            } catch (error) {
-                appendMessage('error', '서버와의 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
-            } finally {
-                // 버튼 활성화 및 로딩 표시 제거
-                submitButton.disabled = false;
-                loadingIndicator.classList.add('hidden');
-                userInput.focus();
-            }
-        });
+        privateModeBtn.addEventListener('click', togglePrivateMode);
 
         // 대화 초기화 기능
         document.getElementById('clearContext').addEventListener('click', async () => {
@@ -941,33 +1273,34 @@
 
         // 세션 불러오기
         async function loadSession(filename) {
-            if (!confirm('현재 대화가 저장된 세션으로 대체됩니다. 계속하시겠습니까?')) {
+            if (window.privateMode.isPrivateMode()) {
+                alert('비공개 모드에서는 세션을 불러올 수 없습니다.');
                 return;
             }
-            
+
             try {
                 const response = await fetch(`/load_session/${filename}`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {
+                        'X-Private-Mode': window.privateMode.isPrivateMode() ? 'true' : 'false'
+                    }
                 });
                 
                 const data = await response.json();
                 if (data.status === 'success') {
-                    // 채팅 컨테이너 비우기
                     const chatContainer = document.getElementById('chatContainer');
                     chatContainer.innerHTML = '';
                     
-                    // 저장된 메시지들 추가
                     data.messages.forEach(message => {
-                        appendMessage(message.role, message.content, message.audio_url);
+                        appendMessage(message.role, message.content);
                     });
                     
-                    appendMessage('assistant', data.message);  // 성공 메시지 표시
-                    sessionModal.classList.add('hidden');  // 모달 닫기
+                    appendMessage('assistant', data.message);
+                    sessionModal.classList.add('hidden');
                 } else {
                     alert(data.message || '세션 불러오기 중 오류가 발생했습니다.');
                 }
             } catch (error) {
-                console.error('세션 불러오기 중 오류 발생:', error);
                 alert('세션 불러오기 중 오류가 발생했습니다.');
             }
         }
