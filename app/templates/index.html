@@ -143,6 +143,90 @@
         .private-mode-on .private-mode-banner {
             display: block;
         }
+
+        /* 음성 출력 모드 스타일 */
+        .voice-output-active {
+            background: #059669 !important;
+        }
+
+        .voice-output-active .voice-output-indicator {
+            transform: translateX(100%);
+        }
+
+        .voice-output-icon {
+            transition: color 0.3s ease;
+        }
+
+        .voice-output-active .voice-output-icon {
+            color: #10B981;
+        }
+
+        /* 토글 버튼 공통 스타일 */
+        .toggle-btn {
+            position: relative;
+            padding: 0.25rem 0.75rem !important;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 2.5rem;
+            height: 1.25rem;
+            background-color: #374151;
+            border-radius: 9999px;
+            margin-left: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .toggle-btn-content {
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+
+        .toggle-indicator {
+            position: absolute;
+            left: 0.125rem;
+            top: 0.125rem;
+            width: 1rem;
+            height: 1rem;
+            background-color: white;
+            border-radius: 9999px;
+            transition: transform 0.2s ease;
+        }
+
+        /* 비공개 모드 스타일 */
+        .private-mode-active {
+            background: #DC2626 !important;
+        }
+
+        .private-mode-active .toggle-switch {
+            background-color: #991B1B;
+        }
+
+        .private-mode-active .toggle-indicator {
+            transform: translateX(1.25rem);
+        }
+
+        /* 음성 출력 모드 스타일 */
+        .voice-output-active {
+            background: #059669 !important;
+        }
+
+        .voice-output-active .toggle-switch {
+            background-color: #065F46;
+        }
+
+        .voice-output-active .toggle-indicator {
+            transform: translateX(1.25rem);
+        }
+
+        .voice-output-icon {
+            transition: color 0.3s ease;
+        }
+
+        .voice-output-active .voice-output-icon {
+            color: #10B981;
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200" id="body">
@@ -162,11 +246,24 @@
             <!-- 기능 버튼들 -->
             <div class="flex justify-center items-center gap-4 flex-wrap">
                 <button id="privateMode" 
-                        class="px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-eye-slash"></i>
-                    <span>비공개 모드</span>
-                    <div class="relative ml-1 w-8 h-4 bg-gray-400 rounded-full">
-                        <div class="private-mode-indicator absolute left-0 top-0 w-4 h-4 bg-white rounded-full shadow transition-transform"></div>
+                        class="toggle-btn px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded-full flex items-center transition-colors">
+                    <div class="toggle-btn-content">
+                        <i class="fas fa-eye-slash"></i>
+                        <span class="mx-1">비공개 모드</span>
+                        <div class="toggle-switch">
+                            <div class="toggle-indicator"></div>
+                        </div>
+                    </div>
+                </button>
+
+                <button id="voiceOutput" 
+                        class="toggle-btn px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded-full flex items-center transition-colors">
+                    <div class="toggle-btn-content">
+                        <i class="fas fa-volume-up"></i>
+                        <span class="mx-1">음성 출력</span>
+                        <div class="toggle-switch">
+                            <div class="toggle-indicator"></div>
+                        </div>
                     </div>
                 </button>
 
@@ -216,23 +313,7 @@
 
         <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-200">
             <div class="chat-container mb-6 p-6 h-[500px] overflow-y-auto" id="chatContainer">
-                <!-- 시작 메시지 -->
-                <div class="message assistant mb-4 p-4 rounded-lg bg-gray-100 dark:bg-gray-700 mr-12">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0 mr-3">
-                            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-                                <i class="fas fa-robot text-white"></i>
-                            </div>
-                        </div>
-                        <div class="flex-1">
-                            <div class="font-medium mb-1 text-gray-800 dark:text-gray-200">AI 비서</div>
-                            <div class="text-gray-700 dark:text-gray-300">
-                                안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?<br>
-                                예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- 대화 내용이 여기에 동적으로 추가됩니다 -->
             </div>
 
             <div class="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -433,27 +514,157 @@
         // DOM 요소 참조를 전역 변수로 선언
         const bodyElement = document.body;
         const htmlElement = document.documentElement;
+        const voiceOutputBtn = document.getElementById('voiceOutput');
+        let isVoiceOutputEnabled = localStorage.getItem('voiceOutputEnabled') === 'true';
 
-        // 다크모드 토글
-        const themeToggle = document.getElementById('themeToggle');
-        const themeIcon = document.getElementById('themeIcon');
-        
-        function setTheme(isDark) {
-            if (isDark) {
-                htmlElement.classList.add('dark');
-                bodyElement.classList.add('dark');
-                themeIcon.classList.remove('fa-moon');
-                themeIcon.classList.add('fa-sun');
-            } else {
-                htmlElement.classList.remove('dark');
-                bodyElement.classList.remove('dark');
-                themeIcon.classList.remove('fa-sun');
-                themeIcon.classList.add('fa-moon');
-            }
-            localStorage.setItem('darkMode', isDark);
+        // 오디오 재생 관련 변수들
+        let currentAudio = null;
+        let currentButton = null;
+
+        // 음성 출력 상태 초기화
+        if (isVoiceOutputEnabled) {
+            voiceOutputBtn.classList.add('voice-output-active');
         }
 
-        // 채팅 메시지 추가 함수 수정
+        // 음성 출력 토글 함수
+        function toggleVoiceOutput() {
+            isVoiceOutputEnabled = !isVoiceOutputEnabled;
+            voiceOutputBtn.classList.toggle('voice-output-active');
+            localStorage.setItem('voiceOutputEnabled', isVoiceOutputEnabled);
+
+            // 상태 변경 메시지 표시
+            const message = isVoiceOutputEnabled ? 
+                '음성 출력이 활성화되었습니다. AI 응답을 자동으로 읽어드립니다.' : 
+                '음성 출력이 비활성화되었습니다.';
+            appendMessage('assistant', message);
+        }
+
+        // 음성 출력 버튼 이벤트 리스너
+        voiceOutputBtn.addEventListener('click', toggleVoiceOutput);
+
+        // 오디오 재생 함수
+        function playAudio(url, button = null) {
+            return new Promise((resolve, reject) => {
+                try {
+                    // URL이 없는 경우 처리
+                    if (!url) {
+                        console.error('오디오 URL이 없습니다.');
+                        reject(new Error('오디오 URL이 없습니다.'));
+                        return;
+                    }
+
+                    // 이전 오디오가 있다면 중지
+                    if (currentAudio) {
+                        currentAudio.pause();
+                        currentAudio.currentTime = 0;
+                        if (currentButton) {
+                            resetButton(currentButton);
+                        }
+                    }
+
+                    // 새 오디오 생성 및 재생
+                    const audio = new Audio(url);
+                    currentAudio = audio;
+                    currentButton = button;
+
+                    // 오디오 이벤트 리스너 설정
+                    audio.addEventListener('canplay', () => {
+                        console.log('오디오 재생 준비 완료');
+                        if (button) {
+                            updateButton(button, true);
+                        }
+                    });
+
+                    audio.addEventListener('ended', () => {
+                        console.log('오디오 재생 완료');
+                        if (button) {
+                            resetButton(button);
+                        }
+                        currentAudio = null;
+                        currentButton = null;
+                        resolve();
+                    });
+
+                    audio.addEventListener('error', (error) => {
+                        console.error('오디오 재생 오류:', error);
+                        if (button) {
+                            resetButton(button);
+                        }
+                        currentAudio = null;
+                        currentButton = null;
+                        reject(error);
+                    });
+
+                    // 오디오 재생 시도
+                    audio.play().catch(error => {
+                        console.error('오디오 재생 실패:', error);
+                        if (button) {
+                            resetButton(button);
+                        }
+                        currentAudio = null;
+                        currentButton = null;
+                        reject(error);
+                    });
+
+                } catch (error) {
+                    console.error('오디오 재생 중 예외 발생:', error);
+                    if (button) {
+                        resetButton(button);
+                    }
+                    currentAudio = null;
+                    currentButton = null;
+                    reject(error);
+                }
+            });
+        }
+
+        // 오디오 버튼 상태 업데이트 함수
+        function updateButton(button, isPlaying) {
+            const icon = button.querySelector('i');
+            const text = button.querySelector('.audio-text');
+            
+            if (isPlaying) {
+                icon.classList.remove('fa-play');
+                icon.classList.add('fa-stop');
+                text.textContent = '음성 중지';
+                button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                button.classList.add('bg-red-500', 'hover:bg-red-600');
+            } else {
+                resetButton(button);
+            }
+        }
+
+        // 오디오 버튼 초기화 함수
+        function resetButton(button) {
+            const icon = button.querySelector('i');
+            const text = button.querySelector('.audio-text');
+            
+            icon.classList.remove('fa-stop');
+            icon.classList.add('fa-play');
+            text.textContent = '음성으로 듣기';
+            button.classList.remove('bg-red-500', 'hover:bg-red-600');
+            button.classList.add('bg-blue-500', 'hover:bg-blue-600');
+        }
+
+        // 오디오 토글 함수
+        function toggleAudio(button, url) {
+            if (currentButton === button && currentAudio) {
+                // 현재 재생 중인 오디오 정지
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                resetButton(button);
+                currentAudio = null;
+                currentButton = null;
+            } else {
+                // 새로운 오디오 재생
+                playAudio(url, button).catch(error => {
+                    console.error('음성 재생 실패:', error);
+                    alert('음성 재생 중 오류가 발생했습니다.');
+                });
+            }
+        }
+
+        // 기존 appendMessage 함수 수정
         function appendMessage(type, content, audioUrl = null) {
             const chatContainer = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
@@ -468,6 +679,7 @@
             const icon = type === 'user' ? 'fa-user' : 'fa-robot';
             const iconBg = type === 'user' ? 'bg-green-500' : 'bg-blue-500';
             
+            // 음성 재생 버튼 (AI 응답일 때만)
             let audioButton = '';
             if (type === 'assistant' && audioUrl) {
                 audioButton = `
@@ -501,6 +713,20 @@
             
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // 음성 출력이 활성화되어 있고 AI 응답이면서 audioUrl이 있는 경우 자동 재생
+            if (type === 'assistant' && audioUrl && isVoiceOutputEnabled) {
+                console.log('자동 음성 재생 시도:', audioUrl);
+                setTimeout(() => {
+                    const button = messageDiv.querySelector('button');
+                    playAudio(audioUrl, button).catch(error => {
+                        console.error('자동 음성 재생 실패:', error);
+                        if (button) {
+                            resetButton(button);
+                        }
+                    });
+                }, 500);
+            }
         }
 
         // 전역 폼 제출 처리 함수
@@ -680,9 +906,29 @@
             }
         }
 
+        // 테마 설정 함수 추가
+        function setTheme(isDark) {
+            if (isDark) {
+                bodyElement.classList.add('dark');
+                htmlElement.classList.add('dark');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            } else {
+                bodyElement.classList.remove('dark');
+                htmlElement.classList.remove('dark');
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+            }
+            localStorage.setItem('darkMode', isDark);
+        }
+
         // 페이지 로드 시 초기화
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('Page loaded, initializing...');
+            
+            // DOM 요소 참조
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
             
             // 저장된 테마 설정 불러오기
             const savedDarkMode = localStorage.getItem('darkMode') === 'true';
@@ -734,78 +980,6 @@
                 const cleanUrl = url.replace(/[.,;?!]$/, '');
                 return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500 underline">${cleanUrl}</a>`;
             });
-        }
-
-        // 오디오 재생 관련 변수들
-        let currentAudio = null;
-        let currentButton = null;
-        
-        function toggleAudio(button, url) {
-            // 이전에 재생 중인 다른 오디오가 있다면 중지
-            if (currentAudio && currentButton && (currentButton !== button)) {
-                currentAudio.pause();
-                currentAudio.currentTime = 0;
-                resetButton(currentButton);
-            }
-
-            // 같은 버튼을 눌렀을 때의 처리
-            if (currentButton === button && currentAudio) {
-                if (!currentAudio.paused) {
-                    // 재생 중지
-                    currentAudio.pause();
-                    currentAudio.currentTime = 0;
-                    resetButton(button);
-                    currentAudio = null;
-                    currentButton = null;
-                } else {
-                    // 재생 시작
-                    currentAudio.play();
-                    updateButton(button, true);
-                }
-                return;
-            }
-
-            // 새로운 오디오 재생
-            if (!currentAudio || currentButton !== button) {
-                currentAudio = new Audio(url);
-                currentButton = button;
-                
-                currentAudio.play();
-                updateButton(button, true);
-                
-                // 재생이 끝나면 버튼 상태 초기화
-                currentAudio.onended = () => {
-                    resetButton(button);
-                    currentAudio = null;
-                    currentButton = null;
-                };
-            }
-        }
-        
-        function updateButton(button, isPlaying) {
-            const icon = button.querySelector('i');
-            const text = button.querySelector('.audio-text');
-            
-            if (isPlaying) {
-                icon.classList.remove('fa-play');
-                icon.classList.add('fa-stop');
-                text.textContent = '음성 중지';
-                button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-                button.classList.add('bg-red-500', 'hover:bg-red-600');
-            } else {
-                resetButton(button);
-            }
-        }
-        
-        function resetButton(button) {
-            const icon = button.querySelector('i');
-            const text = button.querySelector('.audio-text');
-            
-            icon.classList.remove('fa-stop');
-            icon.classList.add('fa-play');
-            text.textContent = '음성으로 듣기';
-            button.classList.remove('bg-red-500', 'hover:bg-red-600');
-            button.classList.add('bg-blue-500', 'hover:bg-blue-600');
         }
 
         // 알림 권한 요청

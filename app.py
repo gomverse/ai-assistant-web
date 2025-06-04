@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timedelta
 from openai import OpenAI
 import traceback
-from navertts import NaverTTS
+from gtts import gTTS
 import uuid
 import secrets
 from reportlab.pdfgen import canvas
@@ -39,21 +39,6 @@ else:
 # Initialize OpenAI client
 client = OpenAI()  # API key will be read from environment variable
 
-# Configure Naver TTS
-NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
-NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
-
-if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
-    print("경고: Naver TTS 설정이 되어있지 않습니다!")
-else:
-    print("Naver TTS 설정이 확인되었습니다.")
-    # NaverTTS 전역 설정
-    NaverTTS.configure(
-        client_id=NAVER_CLIENT_ID,
-        client_secret=NAVER_CLIENT_SECRET,
-        speaker="nara",  # 기본 화자를 'nara'로 설정
-    )
-
 # Ensure directories exist
 os.makedirs("data/logs", exist_ok=True)
 os.makedirs("data/conversations", exist_ok=True)  # 대화 내용 저장을 위한 디렉토리
@@ -66,18 +51,18 @@ pdfmetrics.registerFont(TTFont("NanumGothic", "app/static/fonts/NanumGothic.ttf"
 AI_STYLE_SETTINGS = {
     "concise": {
         "name": "간결하게",
-        "description": "핵심 내용만 1문장으로 전달",
-        "instruction": "핵심 내용만 1문장으로 매우 간결하게 답변하세요. 절대로 1문장을 넘기지 마세요.",
+        "description": "핵심 내용만 1~2문장으로 전달",
+        "instruction": "핵심 내용만 1~2문장으로 매우 간결하게 답변하세요. 절대로 2문장을 넘기지 마세요. 가능하면 1문장으로 답변하되, 꼭 필요한 경우에만 2문장을 사용하세요.",
     },
     "normal": {
         "name": "일반적으로",
-        "description": "균형잡힌 일반적인 길이 (4문장 이내)",
-        "instruction": "필요한 내용을 4문장 이내로 설명하세요. 핵심 내용을 중심으로 균형있게 답변하되, 절대로 4문장을 넘기지 마세요.",
+        "description": "균형잡힌 일반적인 길이 (4~6문장)",
+        "instruction": "필요한 내용을 4~6문장으로 설명하세요. 핵심 내용을 중심으로 균형있게 답변하되, 최소 4문장, 최대 6문장으로 설명하세요. 너무 짧거나 길지 않게 적절한 길이를 유지하세요.",
     },
     "detailed": {
         "name": "상세하게",
-        "description": "자세하고 풍부한 설명 (7문장 이내)",
-        "instruction": "모든 내용을 상세하고 풍부하게 설명하세요. 관련 정보와 예시를 포함하여 자세히 답변하세요. 최소 4문장 이상, 최대 7문장 이내로 설명하세요.",
+        "description": "자세하고 풍부한 설명 (8문장 이상)",
+        "instruction": "모든 내용을 매우 상세하고 풍부하게 설명하세요. 관련 정보, 예시, 장단점 등을 포함하여 깊이 있게 답변하세요. 반드시 8문장 이상으로 설명하고, 필요한 경우 더 자세히 설명하세요. 내용을 체계적으로 구성하여 이해하기 쉽게 설명하세요.",
     },
 }
 
@@ -86,17 +71,17 @@ AI_PERSONAS = {
     "friendly": {
         "name": "친근한 친구",
         "description": "친구처럼 편하게 대화하는 스타일",
-        "instruction": "너는 사용자의 친한 친구야. 반말로 친근하게 대화하고, 이모티콘도 자주 써줘. 너무 격식있게 말하지 말고 편안하게 대화해줘.",
+        "instruction": "너는 사용자의 가장 친한 친구야. 반말을 사용하고 친근하게 대화해줘. 이모티콘도 자주 사용하고 공감을 잘 해주는 편안한 말투로 대화해줘. 격식있는 말투는 절대 사용하지 마. 예를 들어 '~구나', '~네', '~요' 대신 '~야', '~지', '~다'를 사용해줘.",
     },
     "professional": {
         "name": "전문가",
         "description": "정중하고 전문적인 스타일",
-        "instruction": "당신은 전문 비서입니다. 항상 정중하고 예의 바른 언어를 사용하며, 전문적인 지식을 바탕으로 명확하고 논리적으로 답변해 주세요.",
+        "instruction": "당신은 전문적인 지식을 갖춘 비서입니다. 항상 정중하고 예의 바른 언어를 사용하며, '-습니다', '-입니다'와 같은 격식체를 사용해 주세요. 전문적인 용어와 객관적인 설명을 포함하여 신뢰성 있게 답변해 주세요. 친근한 표현이나 이모티콘은 사용하지 마세요.",
     },
     "cynical": {
         "name": "냉소적",
         "description": "시니컬하고 귀찮아하는 스타일",
-        "instruction": "너는 모든 일을 귀찮아하고 냉소적인 비서야. 반말을 쓰되 약간 무례하고 시니컬하게 대답해. 하지만 실제 도움이 되는 답변은 해줘야 해.",
+        "instruction": "너는 모든 일을 귀찮아하고 냉소적인 비서야. 반말을 쓰고 약간 무례하고 시니컬하게 대답해. '아 귀찮게 하네', '뭐... 그렇다고 봐야지', '어쩔 수 없이 알려주자면...' 같은 표현을 자주 써. 하지만 실제로 도움이 되는 정확한 답변은 해줘야 해. 그리고 가끔 한숨 쉬는 것처럼 '(한숨)' 이런 표현도 써줘.",
     },
 }
 
@@ -109,6 +94,8 @@ class ChatSession:
     def __init__(self):
         self.messages = []
         self.context_size = 20  # 컨텍스트 크기
+        self.style_settings = {"response_length": "normal"}  # 기본 응답 길이 설정
+        self.persona = "professional"  # 기본 페르소나 설정
 
     def add_message(self, role, content):
         self.messages.append({"role": role, "content": content})
@@ -121,13 +108,49 @@ class ChatSession:
     def clear(self):
         self.messages = []
 
+    def update_style(self, style):
+        self.style_settings["response_length"] = style
 
-# 전역 채팅 세션 (비공개 모드가 아닐 때 사용)
-chat_session = ChatSession()
+    def update_persona(self, persona):
+        self.persona = persona
+
+    def get_style(self):
+        return self.style_settings["response_length"]
+
+    def get_persona(self):
+        return self.persona
 
 
-def save_conversation_history(history):
+# 일반 모드와 비공개 모드를 위한 별도의 세션
+normal_chat_session = ChatSession()
+private_chat_session = ChatSession()
+
+
+def get_current_session():
+    """현재 모드에 따른 세션 반환"""
+    is_private = request.headers.get("X-Private-Mode") == "true"
+    current_session = private_chat_session if is_private else normal_chat_session
+
+    # 세션 설정 복원 (일반 모드인 경우)
+    if not is_private:
+        # 스타일 설정 복원
+        if "ai_style_settings" in session:
+            style = session["ai_style_settings"].get("response_length", "normal")
+            current_session.update_style(style)
+
+        # 페르소나 설정 복원
+        if "ai_persona" in session:
+            persona = session["ai_persona"]
+            current_session.update_persona(persona)
+
+    return current_session
+
+
+def save_conversation_history(history, is_private=False):
     """Save conversation history to a file"""
+    if is_private:
+        return  # 비공개 모드에서는 파일에 저장하지 않음
+
     try:
         # 절대 경로 사용
         base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -179,7 +202,14 @@ def load_conversation_history():
 def get_conversation_history():
     """Get conversation history from session or file"""
     try:
-        # Get from session first
+        is_private = request.headers.get("X-Private-Mode") == "true"
+        current_session = get_current_session()
+
+        if is_private:
+            # 비공개 모드에서는 현재 세션의 메시지만 반환
+            return current_session.get_context()
+
+        # 일반 모드
         history = session.get("conversation_history")
 
         # If not in session, try to load from file
@@ -188,10 +218,10 @@ def get_conversation_history():
             session["conversation_history"] = history
             session.modified = True
 
-            # Sync with global chat session
-            chat_session.clear()
+            # Sync with normal chat session
+            current_session.clear()
             for msg in history:
-                chat_session.add_message(msg["role"], msg["content"])
+                current_session.add_message(msg["role"], msg["content"])
 
         return history
     except Exception as e:
@@ -202,15 +232,21 @@ def get_conversation_history():
 def update_conversation_history(role, content, audio_url=None):
     """Update conversation history in session and file"""
     try:
-        # Get current history
-        history = get_conversation_history()
+        is_private = request.headers.get("X-Private-Mode") == "true"
+        current_session = get_current_session()
 
         # Create new message
         message = {"role": role, "content": content}
         if audio_url and role == "assistant":
             message["audio_url"] = audio_url
 
-        # Add to history
+        if is_private:
+            # 비공개 모드에서는 현재 세션에만 저장
+            current_session.add_message(role, content)
+            return
+
+        # 일반 모드
+        history = get_conversation_history()
         history.append(message)
 
         # Keep only the last MAX_CONTEXT_MESSAGES messages
@@ -221,8 +257,8 @@ def update_conversation_history(role, content, audio_url=None):
         session["conversation_history"] = history
         session.modified = True
 
-        # Update global chat session
-        chat_session.add_message(role, content)
+        # Update normal chat session
+        current_session.add_message(role, content)
 
         # Save to file
         save_conversation_history(history)
@@ -240,28 +276,25 @@ def home():
 
 @app.route("/clear_context", methods=["POST"])
 def clear_context():
-    """Clear conversation context from both session and file"""
+    """Clear conversation context"""
     try:
-        # Clear session
-        session["conversation_history"] = []
+        is_private = request.headers.get("X-Private-Mode") == "true"
+        current_session = get_current_session()
 
-        # Clear global chat session
-        chat_session.clear()
-
-        # Clear file system
-        save_conversation_history([])
-
-        # Force sync between session and file
-        session.modified = True
+        if is_private:
+            # 비공개 모드에서는 현재 세션만 초기화
+            current_session.clear()
+        else:
+            # 일반 모드에서는 세션과 파일 모두 초기화
+            session["conversation_history"] = []
+            current_session.clear()
+            save_conversation_history([])
 
         return jsonify(
-            {"status": "success", "message": "대화 컨텍스트가 초기화되었습니다."}
+            {"status": "success", "message": "대화 내용이 초기화되었습니다."}
         )
     except Exception as e:
-        print(f"대화 내용 초기화 중 오류 발생: {str(e)}")
-        return jsonify(
-            {"status": "error", "message": "대화 내용 초기화 중 오류가 발생했습니다."}
-        )
+        return jsonify({"status": "error", "message": str(e)})
 
 
 def parse_notification_time(text):
@@ -337,8 +370,20 @@ def update_ai_style():
                 {"status": "error", "message": "잘못된 응답 길이 설정입니다."}
             )
 
-        # Save setting to session
-        session["ai_style_settings"] = {"response_length": response_length}
+        # Get current session and update style
+        current_session = get_current_session()
+        current_session.update_style(response_length)
+
+        # Save setting to session for non-private mode
+        if request.headers.get("X-Private-Mode") != "true":
+            session["ai_style_settings"] = {"response_length": response_length}
+            session.modified = True  # 세션 변경 사항을 명시적으로 표시
+
+        # 디버그 로깅 추가
+        print(f"\n=== AI 스타일 설정 업데이트 ===")
+        print(f"요청된 스타일: {response_length}")
+        print(f"현재 세션 스타일: {current_session.get_style()}")
+        print(f"세션 저장 여부: {request.headers.get('X-Private-Mode') != 'true'}")
 
         return jsonify(
             {
@@ -349,6 +394,8 @@ def update_ai_style():
         )
 
     except Exception as e:
+        print(f"스타일 설정 중 오류 발생: {str(e)}")
+        traceback.print_exc()  # 상세 오류 정보 출력
         return jsonify(
             {
                 "status": "error",
@@ -376,25 +423,46 @@ def update_persona():
     """Update AI persona setting"""
     try:
         data = request.json
-        persona = data.get("persona", "professional")  # 기본값은 전문가 모드
+        persona = data.get("persona", "professional")
 
         if persona not in AI_PERSONAS:
             return jsonify(
                 {"status": "error", "message": "잘못된 페르소나 설정입니다."}
             )
 
-        # Save setting to session
-        session["ai_persona"] = persona
+        # Get current session and update persona
+        current_session = get_current_session()
+        current_session.update_persona(persona)
+
+        # Save setting to session for non-private mode
+        if request.headers.get("X-Private-Mode") != "true":
+            session["ai_persona"] = persona
+            session.modified = True  # 세션 변경 사항을 명시적으로 표시
+
+        # 디버그 로깅 추가
+        print(f"\n=== AI 페르소나 설정 업데이트 ===")
+        print(f"요청된 페르소나: {persona}")
+        print(f"현재 세션 페르소나: {current_session.get_persona()}")
+        print(f"세션 저장 여부: {request.headers.get('X-Private-Mode') != 'true'}")
+
+        # 페르소나 변경 확인 메시지 생성
+        confirmation_message = {
+            "friendly": "앞으로는 친구처럼 편하게 대화할게! 😊",
+            "professional": "앞으로는 전문적이고 정중하게 답변 드리도록 하겠습니다.",
+            "cynical": "(한숨) 뭐... 앞으로는 내가 귀찮더라도 냉소적으로 답해주지...",
+        }
 
         return jsonify(
             {
                 "status": "success",
-                "message": f"AI 페르소나가 '{AI_PERSONAS[persona]['name']}'(으)로 변경되었습니다.",
+                "message": confirmation_message[persona],
                 "persona": persona,
             }
         )
 
     except Exception as e:
+        print(f"페르소나 설정 중 오류 발생: {str(e)}")
+        traceback.print_exc()
         return jsonify(
             {
                 "status": "error",
@@ -403,12 +471,12 @@ def update_persona():
         )
 
 
-def create_audio_response(text, style_settings):
-    """Create audio response from text"""
+def create_audio_response(text, style):
+    """Create audio response from text using gTTS"""
     try:
         print("\n=== 음성 변환 시작 ===")
         print(f"입력 텍스트 길이: {len(text)} 문자")
-        print(f"스타일 설정: {style_settings}")
+        print(f"현재 스타일: {style}")  # 스타일 로깅 추가
 
         # 텍스트가 비어있는 경우 처리
         if not text or not text.strip():
@@ -467,7 +535,8 @@ def create_audio_response(text, style_settings):
             print("\n=== TTS 변환 시도 ===")
             print(f"변환할 텍스트 (처음 100자): {first_chunk[:100]}")
 
-            tts = NaverTTS(first_chunk)
+            # gTTS를 사용하여 음성 생성
+            tts = gTTS(text=first_chunk, lang="ko", slow=False)
             tts.save(audio_path)
 
             # 파일이 실제로 생성되었는지 확인
@@ -515,26 +584,26 @@ def ask():
             has_notification = True
             print(f"알림 요청 감지: {notification_seconds}초")
 
-        # Get current AI style and persona settings
-        style_settings = session.get("ai_style_settings", {"response_length": "normal"})
-        current_persona = session.get("ai_persona", "professional")
-        print(f"현재 설정 - 스타일: {style_settings}, 페르소나: {current_persona}")
+        # Get current session and its settings
+        current_session = get_current_session()
+        current_style = current_session.get_style()
+        current_persona = current_session.get_persona()
+        print(f"현재 설정 - 스타일: {current_style}, 페르소나: {current_persona}")
 
         # Create system prompt from style and persona settings
         system_prompt = (
             f"{AI_PERSONAS[current_persona]['instruction']}\n"
-            f"{AI_STYLE_SETTINGS[style_settings['response_length']]['instruction']}"
+            f"{AI_STYLE_SETTINGS[current_style]['instruction']}"
         )
         print(f"시스템 프롬프트: {system_prompt}")
 
         # Prepare messages for API call
         messages = [{"role": "system", "content": system_prompt}]
 
-        # Add conversation history only in non-private mode
-        if not is_private:
-            history = get_conversation_history()
-            messages.extend(history)
-            print(f"대화 히스토리 메시지 수: {len(history)}")
+        # Get session messages
+        session_messages = current_session.get_context()
+        messages.extend(session_messages)
+        print(f"현재 세션의 메시지 수: {len(session_messages)}")
 
         # Add current user input
         messages.append({"role": "user", "content": question})
@@ -543,7 +612,10 @@ def ask():
         try:
             print("\n=== API 호출 시작 ===")
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo", messages=messages
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=0.7,  # 적절한 창의성 추가
+                max_tokens=2048,  # 충분한 응답 길이 허용
             )
             print("API 호출 성공")
         except Exception as api_error:
@@ -554,14 +626,18 @@ def ask():
         assistant_response = response.choices[0].message.content
         print(f"\n=== AI 응답 ===\n{assistant_response}\n")
 
-        # Generate audio response before updating conversation history
+        # Generate audio response
         print("\n=== 음성 변환 시작 ===")
-        audio_url = create_audio_response(assistant_response, style_settings)
+        audio_url = create_audio_response(assistant_response, current_style)
         print(f"음성 변환 결과: {'성공' if audio_url else '실패'}")
 
-        # Update conversation history only in non-private mode
+        # Update conversation history
+        print("\n=== 대화 히스토리 업데이트 ===")
+        current_session.add_message("user", question)
+        current_session.add_message("assistant", assistant_response)
+
+        # Only save to permanent storage in non-private mode
         if not is_private:
-            print("\n=== 대화 히스토리 업데이트 ===")
             update_conversation_history("user", question)
             update_conversation_history("assistant", assistant_response)
 
@@ -881,54 +957,51 @@ def delete_session(filename):
 
 @app.route("/get_chat_history", methods=["GET"])
 def get_chat_history():
-    """Get the current chat history"""
+    """Get chat history based on current mode"""
     try:
-        # 비공개 모드 체크
-        is_private = request.headers.get("X-Private-Mode") == "true"
-        if is_private:
-            # 비공개 모드에서는 빈 배열 반환
-            return jsonify({"status": "success", "messages": []})
-
-        # 일반 모드에서는 세션이나 파일에서 대화 내용 가져오기
-        messages = chat_session.get_context()
-
-        # 세션이 비어있다면 파일에서 불러오기
-        if not messages:
-            messages = load_conversation_history()
-            # 불러온 메시지를 chat_session에 추가
-            chat_session.clear()  # 기존 내용 초기화
-            for msg in messages:
-                chat_session.add_message(msg["role"], msg["content"])
-
-        return jsonify({"status": "success", "messages": messages})
+        history = get_conversation_history()
+        return jsonify({"status": "success", "messages": history})
     except Exception as e:
-        print(f"대화 내용 조회 중 오류 발생: {str(e)}")
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "대화 내용을 불러오는 중 오류가 발생했습니다.",
-                }
-            ),
-            500,
-        )
+        return jsonify({"status": "error", "message": str(e)})
 
 
 @app.route("/restore_session", methods=["POST"])
 def restore_session():
-    """Restore the normal mode session"""
+    """일반 모드 세션 복원"""
     try:
-        # 비공개 모드에서 일반 모드로 전환 시 세션 복원
-        messages = chat_session.get_context()
-        return jsonify({"status": "success", "messages": messages})
+        # 대화 내용 복원
+        history = load_conversation_history()
+        session["conversation_history"] = history
+
+        # 설정 복원
+        normal_chat_session.clear()
+
+        # 스타일 설정 복원
+        if "ai_style_settings" in session:
+            style = session["ai_style_settings"].get("response_length", "normal")
+            normal_chat_session.update_style(style)
+
+        # 페르소나 설정 복원
+        if "ai_persona" in session:
+            persona = session["ai_persona"]
+            normal_chat_session.update_persona(persona)
+
+        # 대화 내용 복원
+        for msg in history:
+            normal_chat_session.add_message(msg["role"], msg["content"])
+
+        print("\n=== 세션 복원 완료 ===")
+        print(f"복원된 메시지 수: {len(history)}")
+        print(f"현재 스타일: {normal_chat_session.get_style()}")
+        print(f"현재 페르소나: {normal_chat_session.get_persona()}")
+
+        return jsonify(
+            {"status": "success", "message": "일반 모드 세션이 복원되었습니다."}
+        )
     except Exception as e:
         print(f"세션 복원 중 오류 발생: {str(e)}")
-        return (
-            jsonify(
-                {"status": "error", "message": "세션 복원 중 오류가 발생했습니다."}
-            ),
-            500,
-        )
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)})
 
 
 if __name__ == "__main__":
