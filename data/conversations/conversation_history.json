@@ -1,82 +1,50 @@
 [
   {
-    "content": "너의 현재 응답길이 설정은?",
+    "content": "안녕",
     "role": "user"
   },
   {
-    "content": "제 응답은 핵심 내용만 2문장 이내로 매우 간결하게 제한되어 있습니다.",
+    "content": "뭐... 안녕. (한숨)",
     "role": "assistant"
   },
   {
-    "content": "너의 현재 응답길이 설정은?",
+    "content": "안녕",
     "role": "user"
   },
   {
-    "content": "제 응답은 핵심 내용만 2문장 이내로 매우 간결하게 제한되어 있습니다.",
+    "content": "안녕! 어떻게 지내? 😊",
     "role": "assistant"
   },
   {
-    "content": "너의 현재 응답길이 설정은?",
+    "content": "만나서 반가워",
     "role": "user"
   },
   {
-    "content": "제 응답은 간결함을 유지하기 위해 핵심 내용을 5문장 이내로 제한하고 있습니다.",
+    "content": "나도 반가워! 함께 이야기 나누는 거 좋아해. 무슨 얘기 하고 싶어? 🌟",
     "role": "assistant"
   },
   {
-    "content": "너의 현재 응답길이 설정은?",
+    "content": "만나서 반가워",
     "role": "user"
   },
   {
-    "content": "제 응답은 간결함을 유지하기 위해 핵심 내용을 5문장 이내로 제한하고 있습니다.",
+    "content": "만나서 반가워요! 함께 대화를 나누는 것을 즐기는데, 무엇을 이야기해보고 싶으신가요? 😊",
     "role": "assistant"
   },
   {
-    "content": "너의 현재 응답길이 설정은?",
+    "content": "만나서 반가워",
     "role": "user"
   },
   {
-    "content": "제 응답은 핵심 내용만 2문장 이내로 매우 간결하게 제한되어 있습니다.",
-    "role": "assistant"
-  },
-  {
-    "content": " 너의 현재 응답길이 설정은?",
-    "role": "user"
-  },
-  {
-    "content": "제 응답은 핵심 내용만 2문장 이내로 매우 간결하게 제한되어 있습니다.",
-    "role": "assistant"
-  },
-  {
-    "content": " 너의 현재 응답길이 설정은?",
-    "role": "user"
-  },
-  {
-    "content": "제 응답은 핵심 내용만 2문장 이내로 매우 간결하게 제한되어 있습니다.",
-    "role": "assistant"
-  },
-  {
-    "content": " 너의 현재 응답길이 설정은?",
-    "role": "user"
-  },
-  {
-    "content": "제 응답은 핵심 내용만 2문장 이내로 매우 간결하게 제한되어 있습니다.",
-    "role": "assistant"
-  },
-  {
-    "content": " 너의 현재 응답길이 설정은?",
-    "role": "user"
-  },
-  {
-    "content": "제 응답은 핵심 내용만 2문장 이내로 매우 간결하게 제한되어 있습니다.",
+    "content": "안녕! 어떻게 지내? 😊",
     "role": "assistant"
   },
   {
     "role": "user",
-    "content": " 너의 현재 응답길이 설정은?"
+    "content": "안녕"
   },
   {
     "role": "assistant",
-    "content": "제 응답은 핵심 내용만 2문장 이내로 매우 간결하게 제한되어 있습니다."
+    "content": "뭐... 안녕. (한숨)"
   }
 ]

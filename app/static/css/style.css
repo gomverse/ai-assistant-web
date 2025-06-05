@@ -97,4 +97,53 @@ button:disabled {
     button[type="submit"] {
         padding: 0.75rem;
     }
+}
+
+/* 응답 길이 설정 스타일 */
+.style-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.style-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.style-btn.ring-2::after {
+    border-color: currentColor;
+    background-color: currentColor;
+}
+
+.style-btn:hover::after {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* 모달 애니메이션 */
+#responseSettingsModal {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+#responseSettingsModal:not(.hidden) {
+    opacity: 1;
+    visibility: visible;
+}
+
+#responseSettingsModal .bg-white {
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+#responseSettingsModal:not(.hidden) .bg-white {
+    transform: scale(1);
 } 

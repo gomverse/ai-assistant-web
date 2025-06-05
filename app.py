@@ -132,7 +132,7 @@ def get_current_session():
     current_session = private_chat_session if is_private else normal_chat_session
 
     # 세션 설정 복원 (일반 모드인 경우)
-    if not is_private:
+    if not is_private and not hasattr(current_session, "_settings_restored"):
         # 스타일 설정 복원
         if "ai_style_settings" in session:
             style = session["ai_style_settings"].get("response_length", "normal")
@@ -142,6 +142,9 @@ def get_current_session():
         if "ai_persona" in session:
             persona = session["ai_persona"]
             current_session.update_persona(persona)
+
+        # 설정 복원 완료 표시
+        current_session._settings_restored = True
 
     return current_session
 
