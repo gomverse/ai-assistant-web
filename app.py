@@ -16,6 +16,15 @@ from reportlab.lib.units import cm
 import re
 import time
 from threading import Timer
+import logging  # 로깅 모듈 추가
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.FileHandler("data/logs/app.log"), logging.StreamHandler()],
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -53,16 +62,19 @@ AI_STYLE_SETTINGS = {
         "name": "간결하게",
         "description": "핵심 내용만 1~2문장으로 전달",
         "instruction": "핵심 내용만 1~2문장으로 매우 간결하게 답변하세요. 절대로 2문장을 넘기지 마세요. 가능하면 1문장으로 답변하되, 꼭 필요한 경우에만 2문장을 사용하세요.",
+        "confirmation": "앞으로는 핵심 내용만 간단히 답변드리겠습니다.",
     },
     "normal": {
         "name": "일반적으로",
         "description": "균형잡힌 일반적인 길이 (4~6문장)",
         "instruction": "필요한 내용을 4~6문장으로 설명하세요. 핵심 내용을 중심으로 균형있게 답변하되, 최소 4문장, 최대 6문장으로 설명하세요. 너무 짧거나 길지 않게 적절한 길이를 유지하세요.",
+        "confirmation": "앞으로는 적절한 길이로 균형있게 답변드리겠습니다.",
     },
     "detailed": {
         "name": "상세하게",
         "description": "자세하고 풍부한 설명 (8문장 이상)",
         "instruction": "모든 내용을 매우 상세하고 풍부하게 설명하세요. 관련 정보, 예시, 장단점 등을 포함하여 깊이 있게 답변하세요. 반드시 8문장 이상으로 설명하고, 필요한 경우 더 자세히 설명하세요. 내용을 체계적으로 구성하여 이해하기 쉽게 설명하세요.",
+        "confirmation": "앞으로는 모든 내용을 상세하게 설명드리겠습니다.",
     },
 }
 
@@ -71,17 +83,20 @@ AI_PERSONAS = {
     "friendly": {
         "name": "친근한 친구",
         "description": "친구처럼 편하게 대화하는 스타일",
-        "instruction": "너는 사용자의 가장 친한 친구야. 반말을 사용하고 친근하게 대화해줘. 이모티콘도 자주 사용하고 공감을 잘 해주는 편안한 말투로 대화해줘. 격식있는 말투는 절대 사용하지 마. 예를 들어 '~구나', '~네', '~요' 대신 '~야', '~지', '~다'를 사용해줘.",
+        "instruction": "친구처럼 편하고 친근하게 대화하세요. 이모티콘을 적절히 사용하고, 존댓말 대신 반말을 사용하세요. 하지만 너무 가볍지 않게 적절한 예의는 지키세요.",
+        "confirmation": "앞으로는 친구처럼 편하게 대화할게! 😊",
     },
     "professional": {
         "name": "전문가",
         "description": "정중하고 전문적인 스타일",
-        "instruction": "당신은 전문적인 지식을 갖춘 비서입니다. 항상 정중하고 예의 바른 언어를 사용하며, '-습니다', '-입니다'와 같은 격식체를 사용해 주세요. 전문적인 용어와 객관적인 설명을 포함하여 신뢰성 있게 답변해 주세요. 친근한 표현이나 이모티콘은 사용하지 마세요.",
+        "instruction": "전문가답게 정중하고 전문적으로 답변하세요. 항상 존댓말을 사용하고, 객관적이고 논리적으로 설명하세요. 필요한 경우 전문 용어를 적절히 사용하되, 이해하기 쉽게 설명하세요.",
+        "confirmation": "앞으로는 전문적이고 정중하게 답변 드리도록 하겠습니다.",
     },
     "cynical": {
         "name": "냉소적",
         "description": "시니컬하고 귀찮아하는 스타일",
-        "instruction": "너는 모든 일을 귀찮아하고 냉소적인 비서야. 반말을 쓰고 약간 무례하고 시니컬하게 대답해. '아 귀찮게 하네', '뭐... 그렇다고 봐야지', '어쩔 수 없이 알려주자면...' 같은 표현을 자주 써. 하지만 실제로 도움이 되는 정확한 답변은 해줘야 해. 그리고 가끔 한숨 쉬는 것처럼 '(한숨)' 이런 표현도 써줘.",
+        "instruction": "모든 것이 귀찮고 시니컬한 태도로 답변하세요. 비꼬는 듯한 어투를 사용하고, 한숨을 쉬거나 짜증내는 듯한 표현을 섞어주세요. 하지만 너무 불쾌하지 않게 적절한 선을 지키세요.",
+        "confirmation": "(한숨) 뭐... 앞으로는 내가 귀찮더라도 냉소적으로 답해주지...",
     },
 }
 
@@ -94,34 +109,89 @@ class ChatSession:
     def __init__(self):
         self.messages = []
         self.context_size = 20  # 컨텍스트 크기
-        self.style_settings = {"response_length": "normal"}  # 기본 응답 길이 설정
+        self.style_settings = {"style": "normal"}  # 키 이름 변경
         self.persona = "professional"  # 기본 페르소나 설정
+        self._settings_restored = False
+        logger.info(
+            f"New ChatSession initialized with context_size={self.context_size}"
+        )
 
     def add_message(self, role, content):
         self.messages.append({"role": role, "content": content})
         if len(self.messages) > self.context_size:
-            self.messages.pop(0)
+            removed_msg = self.messages.pop(0)
+            logger.debug(
+                f"Removed oldest message due to context size limit: {removed_msg['role']}: {removed_msg['content'][:50]}..."
+            )
+        logger.debug(
+            f"Added new message - Role: {role}, Content preview: {content[:50]}..."
+        )
+        logger.debug(f"Current message count: {len(self.messages)}")
 
     def get_context(self):
+        logger.debug(f"Returning context with {len(self.messages)} messages")
         return self.messages
 
     def clear(self):
         self.messages = []
+        logger.info("Chat session cleared")
 
     def update_style(self, style):
-        self.style_settings["response_length"] = style
+        if style not in AI_STYLE_SETTINGS:
+            logger.warning(f"Invalid style setting: {style}")
+            return
+        self.style_settings["style"] = style  # 키 이름 변경
+        logger.info(f"Style updated to: {style}")
 
     def update_persona(self, persona):
+        if persona not in AI_PERSONAS:
+            logger.warning(f"Invalid persona setting: {persona}")
+            return
         self.persona = persona
+        logger.info(f"Persona updated to: {persona}")
 
     def get_style(self):
-        return self.style_settings["response_length"]
+        return self.style_settings["style"]  # 키 이름 변경
 
     def get_persona(self):
         return self.persona
 
+    def save_settings_to_session(self):
+        """Save current settings to Flask session"""
+        if not session:
+            logger.warning("No Flask session available")
+            return
 
-# 일반 모드와 비공개 모드를 위한 별도의 세션
+        session["ai_style_settings"] = self.style_settings
+        session["ai_persona"] = self.persona
+        session.modified = True
+        logger.info(
+            f"Settings saved to session - Style: {self.get_style()}, Persona: {self.persona}"
+        )
+
+    def restore_settings_from_session(self):
+        """Restore settings from Flask session"""
+        if not session:
+            logger.warning("No Flask session available")
+            return
+
+        if "ai_style_settings" in session:
+            style = session["ai_style_settings"].get("style")  # 키 이름 변경
+            if style:
+                self.update_style(style)
+                logger.debug(f"Restored style setting: {style}")
+
+        if "ai_persona" in session:
+            persona = session["ai_persona"]
+            if persona:
+                self.update_persona(persona)
+                logger.debug(f"Restored persona setting: {persona}")
+
+        self._settings_restored = True
+        logger.info("Settings restored from session")
+
+
+# Initialize chat sessions
 normal_chat_session = ChatSession()
 private_chat_session = ChatSession()
 
@@ -131,20 +201,15 @@ def get_current_session():
     is_private = request.headers.get("X-Private-Mode") == "true"
     current_session = private_chat_session if is_private else normal_chat_session
 
+    logger.debug(f"Getting current session - Private mode: {is_private}")
+    logger.debug(f"Session message count: {len(current_session.messages)}")
+    logger.debug(f"Current style: {current_session.get_style()}")
+    logger.debug(f"Current persona: {current_session.get_persona()}")
+
     # 세션 설정 복원 (일반 모드인 경우)
-    if not is_private and not hasattr(current_session, "_settings_restored"):
-        # 스타일 설정 복원
-        if "ai_style_settings" in session:
-            style = session["ai_style_settings"].get("response_length", "normal")
-            current_session.update_style(style)
-
-        # 페르소나 설정 복원
-        if "ai_persona" in session:
-            persona = session["ai_persona"]
-            current_session.update_persona(persona)
-
-        # 설정 복원 완료 표시
-        current_session._settings_restored = True
+    if not is_private and not current_session._settings_restored:
+        logger.info("Attempting to restore normal mode session settings")
+        current_session.restore_settings_from_session()
 
     return current_session
 
@@ -152,9 +217,11 @@ def get_current_session():
 def save_conversation_history(history, is_private=False):
     """Save conversation history to a file"""
     if is_private:
+        logger.info("Skipping conversation save - Private mode active")
         return  # 비공개 모드에서는 파일에 저장하지 않음
 
     try:
+        logger.info("Saving conversation history to file")
         # 절대 경로 사용
         base_dir = os.path.abspath(os.path.dirname(__file__))
         conversation_dir = os.path.join(base_dir, "data", "conversations")
@@ -164,22 +231,23 @@ def save_conversation_history(history, is_private=False):
         os.makedirs(conversation_dir, exist_ok=True)
 
         # 저장 전 데이터 확인
-        print(f"저장할 대화 내용 수: {len(history)}")
+        logger.debug(f"Saving {len(history)} messages to file")
 
         with open(conversation_file, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
 
         # 저장 후 확인
-        print(f"대화 내용 저장 완료: {conversation_file}")
-        print(f"파일 크기: {os.path.getsize(conversation_file)} bytes")
+        logger.info(f"Conversation saved to: {conversation_file}")
+        logger.debug(f"File size: {os.path.getsize(conversation_file)} bytes")
     except Exception as e:
-        print(f"대화 내용 저장 중 오류 발생: {str(e)}")
-        traceback.print_exc()  # 상세 오류 정보 출력
+        logger.error(f"Error saving conversation: {str(e)}")
+        logger.error(traceback.format_exc())
 
 
 def load_conversation_history():
     """Load conversation history from a file"""
     try:
+        logger.info("Loading conversation history from file")
         # 절대 경로 사용
         base_dir = os.path.abspath(os.path.dirname(__file__))
         conversation_dir = os.path.join(base_dir, "data", "conversations")
@@ -191,14 +259,14 @@ def load_conversation_history():
         if os.path.exists(conversation_file):
             with open(conversation_file, "r", encoding="utf-8") as f:
                 history = json.load(f)
-                print(f"대화 내용 불러오기 완료: {len(history)}개의 메시지")
+                logger.info(f"Loaded {len(history)} messages from file")
                 return history
         else:
-            print(f"대화 내용 파일이 없음: {conversation_file}")
+            logger.warning(f"No conversation file found at: {conversation_file}")
             return []
     except Exception as e:
-        print(f"대화 내용 불러오기 중 오류 발생: {str(e)}")
-        traceback.print_exc()  # 상세 오류 정보 출력
+        logger.error(f"Error loading conversation: {str(e)}")
+        logger.error(traceback.format_exc())
         return []
 
 
@@ -208,27 +276,35 @@ def get_conversation_history():
         is_private = request.headers.get("X-Private-Mode") == "true"
         current_session = get_current_session()
 
+        logger.debug(f"Getting conversation history - Private mode: {is_private}")
+
         if is_private:
             # 비공개 모드에서는 현재 세션의 메시지만 반환
+            logger.debug("Returning private session messages")
             return current_session.get_context()
 
         # 일반 모드
         history = session.get("conversation_history")
+        logger.debug(f"Session history found: {history is not None}")
 
         # If not in session, try to load from file
         if history is None:
+            logger.info("No history in session, loading from file")
             history = load_conversation_history()
             session["conversation_history"] = history
             session.modified = True
+            logger.debug("History loaded and stored in session")
 
             # Sync with normal chat session
             current_session.clear()
             for msg in history:
                 current_session.add_message(msg["role"], msg["content"])
+            logger.info("Synced history with normal chat session")
 
         return history
     except Exception as e:
-        print(f"대화 내용 조회 중 오류 발생: {str(e)}")
+        logger.error(f"Error getting conversation history: {str(e)}")
+        logger.error(traceback.format_exc())
         return []
 
 
@@ -238,6 +314,9 @@ def update_conversation_history(role, content, audio_url=None):
         is_private = request.headers.get("X-Private-Mode") == "true"
         current_session = get_current_session()
 
+        logger.debug(f"Updating conversation history - Private mode: {is_private}")
+        logger.debug(f"Message - Role: {role}, Content preview: {content[:50]}...")
+
         # Create new message
         message = {"role": role, "content": content}
         if audio_url and role == "assistant":
@@ -245,31 +324,36 @@ def update_conversation_history(role, content, audio_url=None):
 
         if is_private:
             # 비공개 모드에서는 현재 세션에만 저장
+            logger.debug("Adding message to private session only")
             current_session.add_message(role, content)
             return
 
         # 일반 모드
         history = get_conversation_history()
         history.append(message)
+        logger.debug(f"Added message to history. New count: {len(history)}")
 
         # Keep only the last MAX_CONTEXT_MESSAGES messages
         if len(history) > MAX_CONTEXT_MESSAGES:
             history = history[-MAX_CONTEXT_MESSAGES:]
+            logger.debug(f"Trimmed history to {MAX_CONTEXT_MESSAGES} messages")
 
         # Update session
         session["conversation_history"] = history
         session.modified = True
+        logger.debug("Updated session with new history")
 
         # Update normal chat session
         current_session.add_message(role, content)
+        logger.debug("Updated normal chat session")
 
         # Save to file
         save_conversation_history(history)
+        logger.info("Saved updated history to file")
 
-        print(f"대화 내용 업데이트 완료: {len(history)}개의 메시지")
     except Exception as e:
-        print(f"대화 내용 업데이트 중 오류 발생: {str(e)}")
-        traceback.print_exc()
+        logger.error(f"Error updating conversation history: {str(e)}")
+        logger.error(traceback.format_exc())
 
 
 @app.route("/")
@@ -360,51 +444,32 @@ def get_ai_style_settings():
     return jsonify({"status": "success", "settings": AI_STYLE_SETTINGS})
 
 
-@app.route("/update_ai_style", methods=["POST"])
-def update_ai_style():
-    """Update AI response length setting"""
+@app.route("/update_style", methods=["POST"])
+def update_style():
+    """Update AI response style setting"""
     try:
         data = request.json
-        response_length = data.get("response_length", "normal")
+        style = data.get("style", "normal")
 
-        # Validate setting
-        if response_length not in AI_STYLE_SETTINGS:
-            return jsonify(
-                {"status": "error", "message": "잘못된 응답 길이 설정입니다."}
-            )
+        if style not in AI_STYLE_SETTINGS:
+            return jsonify({"status": "error", "message": "잘못된 스타일 설정입니다."})
 
         # Get current session and update style
         current_session = get_current_session()
-        current_session.update_style(response_length)
+        current_session.update_style(style)
 
         # Save setting to session for non-private mode
         if request.headers.get("X-Private-Mode") != "true":
-            session["ai_style_settings"] = {"response_length": response_length}
-            session.modified = True  # 세션 변경 사항을 명시적으로 표시
+            current_session.save_settings_to_session()
 
-        # 디버그 로깅 추가
-        print(f"\n=== AI 스타일 설정 업데이트 ===")
-        print(f"요청된 스타일: {response_length}")
-        print(f"현재 세션 스타일: {current_session.get_style()}")
-        print(f"세션 저장 여부: {request.headers.get('X-Private-Mode') != 'true'}")
+        # 응답 메시지 생성
+        message = f"AI 응답 길이가 '{AI_STYLE_SETTINGS[style]['name']}'(으)로 변경되었습니다.\n{AI_STYLE_SETTINGS[style]['confirmation']}"
 
-        return jsonify(
-            {
-                "status": "success",
-                "message": f"AI 응답 길이가 '{AI_STYLE_SETTINGS[response_length]['name']}'(으)로 변경되었습니다.",
-                "settings": {"response_length": response_length},
-            }
-        )
+        return jsonify({"status": "success", "message": message, "style": style})
 
     except Exception as e:
-        print(f"스타일 설정 중 오류 발생: {str(e)}")
-        traceback.print_exc()  # 상세 오류 정보 출력
-        return jsonify(
-            {
-                "status": "error",
-                "message": f"응답 길이 설정 중 오류가 발생했습니다: {str(e)}",
-            }
-        )
+        logger.error(f"Style update error: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)})
 
 
 @app.route("/get_personas", methods=["GET"])
@@ -439,39 +504,16 @@ def update_persona():
 
         # Save setting to session for non-private mode
         if request.headers.get("X-Private-Mode") != "true":
-            session["ai_persona"] = persona
-            session.modified = True  # 세션 변경 사항을 명시적으로 표시
+            current_session.save_settings_to_session()
 
-        # 디버그 로깅 추가
-        print(f"\n=== AI 페르소나 설정 업데이트 ===")
-        print(f"요청된 페르소나: {persona}")
-        print(f"현재 세션 페르소나: {current_session.get_persona()}")
-        print(f"세션 저장 여부: {request.headers.get('X-Private-Mode') != 'true'}")
+        # 응답 메시지 생성
+        message = f"AI 성격이 '{AI_PERSONAS[persona]['name']}'(으)로 변경되었습니다.\n{AI_PERSONAS[persona]['confirmation']}"
 
-        # 페르소나 변경 확인 메시지 생성
-        confirmation_message = {
-            "friendly": "앞으로는 친구처럼 편하게 대화할게! 😊",
-            "professional": "앞으로는 전문적이고 정중하게 답변 드리도록 하겠습니다.",
-            "cynical": "(한숨) 뭐... 앞으로는 내가 귀찮더라도 냉소적으로 답해주지...",
-        }
-
-        return jsonify(
-            {
-                "status": "success",
-                "message": confirmation_message[persona],
-                "persona": persona,
-            }
-        )
+        return jsonify({"status": "success", "message": message, "persona": persona})
 
     except Exception as e:
-        print(f"페르소나 설정 중 오류 발생: {str(e)}")
-        traceback.print_exc()
-        return jsonify(
-            {
-                "status": "error",
-                "message": f"페르소나 설정 중 오류가 발생했습니다: {str(e)}",
-            }
-        )
+        logger.error(f"Persona update error: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)})
 
 
 def create_audio_response(text, style):
@@ -981,7 +1023,7 @@ def restore_session():
 
         # 스타일 설정 복원
         if "ai_style_settings" in session:
-            style = session["ai_style_settings"].get("response_length", "normal")
+            style = session["ai_style_settings"].get("style", "normal")
             normal_chat_session.update_style(style)
 
         # 페르소나 설정 복원

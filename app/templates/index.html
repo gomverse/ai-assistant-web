@@ -565,7 +565,7 @@
             async init() {
                 // 저장된 설정 불러오기
                 this.persona = localStorage.getItem('aiPersona') || 'professional';
-                this.style = localStorage.getItem('responseLength') || 'normal';
+                this.style = localStorage.getItem('aiStyle') || 'normal';
                 
                 // UI 업데이트
                 updatePersonaButtonStyles(this.persona);
@@ -617,20 +617,20 @@
             // 응답 길이 설정 업데이트
             async updateStyle(newStyle, showMessage = true) {
                 try {
-                    const response = await fetch('/update_ai_style', {
+                    const response = await fetch('/update_style', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-Private-Mode': isPrivateMode ? 'true' : 'false'
                         },
-                        body: JSON.stringify({ response_length: newStyle })
+                        body: JSON.stringify({ style: newStyle })
                     });
 
                     const data = await response.json();
 
                     if (data.status === 'success') {
                         this.style = newStyle;
-                        localStorage.setItem('responseLength', newStyle);
+                        localStorage.setItem('aiStyle', newStyle);  // 키 이름 변경
                         updateStyleButtonStyles(newStyle);
                         
                         if (showMessage) {
