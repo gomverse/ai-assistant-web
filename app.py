@@ -614,9 +614,12 @@ def ask():
         print("\n=== 새로운 요청 시작 ===")
         data = request.json
         question = data.get("question", "")
+        settings = data.get("settings", {})
         is_private = request.headers.get("X-Private-Mode") == "true"
+
         print(f"사용자 입력: {question}")
         print(f"비공개 모드: {is_private}")
+        print(f"클라이언트 설정: {settings}")
 
         if not api_key:
             raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
@@ -631,16 +634,24 @@ def ask():
 
         # Get current session and its settings
         current_session = get_current_session()
-        current_style = current_session.get_style()
-        current_persona = current_session.get_persona()
-        print(f"현재 설정 - 스타일: {current_style}, 페르소나: {current_persona}")
+
+        # Use client settings if provided, otherwise use session settings
+        current_style = settings.get("style") or current_session.get_style()
+        current_persona = settings.get("persona") or current_session.get_persona()
+
+        print(
+            f"최종 적용될 설정 - 스타일: {current_style}, 페르소나: {current_persona}"
+        )
+        print(f"스타일 설정 상세: {AI_STYLE_SETTINGS[current_style]}")
+        print(f"페르소나 설정 상세: {AI_PERSONAS[current_persona]}")
 
         # Create system prompt from style and persona settings
         system_prompt = (
-            f"{AI_PERSONAS[current_persona]['instruction']}\n"
-            f"{AI_STYLE_SETTINGS[current_style]['instruction']}"
+            f"{AI_PERSONAS[current_persona]['instruction']}\n\n"
+            f"{AI_STYLE_SETTINGS[current_style]['instruction']}\n\n"
+            "위의 지시사항을 반드시 준수하여 답변하세요."
         )
-        print(f"시스템 프롬프트: {system_prompt}")
+        print(f"\n=== 시스템 프롬프트 ===\n{system_prompt}\n")
 
         # Prepare messages for API call
         messages = [{"role": "system", "content": system_prompt}]

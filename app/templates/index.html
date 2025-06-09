@@ -563,23 +563,34 @@
             
             // 설정 초기화
             async init() {
+                console.log('설정 초기화 시작');
+                
                 // 저장된 설정 불러오기
                 this.persona = localStorage.getItem('aiPersona') || 'professional';
                 this.style = localStorage.getItem('aiStyle') || 'normal';
+                
+                console.log('로컬 스토리지에서 불러온 설정:', { persona: this.persona, style: this.style });
                 
                 // UI 업데이트
                 updatePersonaButtonStyles(this.persona);
                 updateStyleButtonStyles(this.style);
                 
                 // 서버에 설정 전송
-                await Promise.all([
-                    this.updatePersona(this.persona, false),
-                    this.updateStyle(this.style, false)
-                ]);
+                try {
+                    console.log('서버에 설정 전송 시도');
+                    await Promise.all([
+                        this.updatePersona(this.persona, false),
+                        this.updateStyle(this.style, false)
+                    ]);
+                    console.log('서버 설정 업데이트 완료');
+                } catch (error) {
+                    console.error('서버 설정 업데이트 실패:', error);
+                }
             },
             
             // 페르소나 설정 업데이트
             async updatePersona(newPersona, showMessage = true) {
+                console.log('페르소나 업데이트 시도:', newPersona);
                 try {
                     const response = await fetch('/update_persona', {
                         method: 'POST',
@@ -591,6 +602,7 @@
                     });
 
                     const data = await response.json();
+                    console.log('페르소나 업데이트 응답:', data);
 
                     if (data.status === 'success') {
                         this.persona = newPersona;
@@ -616,6 +628,7 @@
             
             // 응답 길이 설정 업데이트
             async updateStyle(newStyle, showMessage = true) {
+                console.log('스타일 업데이트 시도:', newStyle);
                 try {
                     const response = await fetch('/update_style', {
                         method: 'POST',
@@ -627,10 +640,11 @@
                     });
 
                     const data = await response.json();
+                    console.log('스타일 업데이트 응답:', data);
 
                     if (data.status === 'success') {
                         this.style = newStyle;
-                        localStorage.setItem('aiStyle', newStyle);  // 키 이름 변경
+                        localStorage.setItem('aiStyle', newStyle);
                         updateStyleButtonStyles(newStyle);
                         
                         if (showMessage) {
@@ -964,6 +978,12 @@
             // 사용자 메시지 추가
             appendMessage('user', question);
 
+            // 현재 설정 로깅
+            console.log('메시지 전송 시 현재 설정:', {
+                persona: settings.persona,
+                style: settings.style
+            });
+
             try {
                 const response = await fetch('/ask', {
                     method: 'POST',
@@ -971,7 +991,13 @@
                         'Content-Type': 'application/json',
                         'X-Private-Mode': isPrivateMode ? 'true' : 'false'
                     },
-                    body: JSON.stringify({ question: question })
+                    body: JSON.stringify({ 
+                        question: question,
+                        settings: {
+                            persona: settings.persona,
+                            style: settings.style
+                        }
+                    })
                 });
 
                 if (!response.ok) {
@@ -979,6 +1005,7 @@
                 }
 
                 const data = await response.json();
+                console.log('서버 응답:', data);  // 응답 로깅 추가
 
                 if (data.status === 'success') {
                     appendMessage('assistant', data.response, data.audio_url);
@@ -986,15 +1013,12 @@
                     appendMessage('error', data.message || '죄송합니다. 요청을 처리하는 중에 문제가 발생했습니다.');
                 }
             } catch (error) {
-                console.error('요청 실패:', error);
-                appendMessage('error', '서버와의 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+                console.error('메시지 전송 중 오류 발생:', error);
+                appendMessage('error', '메시지 전송 중 오류가 발생했습니다.');
             } finally {
                 submitButton.disabled = false;
                 loadingIndicator.classList.add('hidden');
-                userInput.focus();
             }
-
-            return false;
         }
     </script>
 </body>
