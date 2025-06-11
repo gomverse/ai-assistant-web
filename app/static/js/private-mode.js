@@ -61,10 +61,6 @@ class PrivateMode {
         // 현재 일반 모드 대화 내용 저장
         this.normalModeMessages = this.getCurrentMessages();
         
-        // 현재 설정 저장
-        const currentStyle = settings.style;
-        const currentPersona = settings.persona;
-        
         // 이전 비공개 모드 대화 내용 복원 또는 초기화
         const savedPrivateMessages = sessionStorage.getItem('privateModeMessages');
         if (savedPrivateMessages) {
@@ -84,18 +80,13 @@ class PrivateMode {
         });
 
         // 설정 복원
-        await settings.updateStyle(currentStyle, false);
-        await settings.updatePersona(currentPersona, false);
+        window.settings.loadSettings();
     }
 
     async switchToNormalMode() {
         // 현재 비공개 모드 대화 내용 저장
         this.privateModeMessages = this.getCurrentMessages();
         sessionStorage.setItem('privateModeMessages', JSON.stringify(this.privateModeMessages));
-        
-        // 현재 설정 저장
-        const currentStyle = settings.style;
-        const currentPersona = settings.persona;
         
         // 일반 모드 대화 내용 복원
         if (this.normalModeMessages) {
@@ -113,8 +104,7 @@ class PrivateMode {
         });
 
         // 설정 복원
-        await settings.updateStyle(currentStyle, false);
-        await settings.updatePersona(currentPersona, false);
+        window.settings.loadSettings();
     }
 
     getCurrentMessages() {

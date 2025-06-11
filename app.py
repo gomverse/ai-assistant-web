@@ -17,6 +17,9 @@ import re
 import time
 from threading import Timer
 import logging  # 로깅 모듈 추가
+import io
+import urllib.parse
+import urllib.request
 
 # Configure logging
 logging.basicConfig(
@@ -162,11 +165,20 @@ class ChatSession:
             logger.warning("No Flask session available")
             return
 
-        session["ai_style_settings"] = self.style_settings
-        session["ai_persona"] = self.persona
+        # 현재 모드 확인
+        is_private = request.headers.get("X-Private-Mode") == "true"
+
+        # 비공개 모드일 때는 'private_' 접두사를 붙여서 저장
+        if is_private:
+            session["private_ai_style_settings"] = self.style_settings
+            session["private_ai_persona"] = self.persona
+        else:
+            session["ai_style_settings"] = self.style_settings
+            session["ai_persona"] = self.persona
+
         session.modified = True
         logger.info(
-            f"Settings saved to session - Style: {self.get_style()}, Persona: {self.persona}"
+            f"Settings saved to {'private' if is_private else 'normal'} session - Style: {self.get_style()}, Persona: {self.persona}"
         )
 
     def restore_settings_from_session(self):
@@ -206,10 +218,31 @@ def get_current_session():
     logger.debug(f"Current style: {current_session.get_style()}")
     logger.debug(f"Current persona: {current_session.get_persona()}")
 
-    # 세션 설정 복원 (일반 모드인 경우)
-    if not is_private and not current_session._settings_restored:
-        logger.info("Attempting to restore normal mode session settings")
-        current_session.restore_settings_from_session()
+    # 세션 설정 복원 (모든 모드에서)
+    if not current_session._settings_restored:
+        logger.info(
+            f"Attempting to restore session settings for {'private' if is_private else 'normal'} mode"
+        )
+        # 비공개 모드일 때는 세션에 'private_' 접두사를 붙여서 저장
+        if is_private:
+            if "private_ai_style_settings" in session:
+                style = session["private_ai_style_settings"].get("style")
+                if style:
+                    current_session.update_style(style)
+                    logger.debug(f"Restored private mode style setting: {style}")
+
+            if "private_ai_persona" in session:
+                persona = session["private_ai_persona"]
+                if persona:
+                    current_session.update_persona(persona)
+                    logger.debug(f"Restored private mode persona setting: {persona}")
+        else:
+            current_session.restore_settings_from_session()
+
+        current_session._settings_restored = True
+        logger.info(
+            f"Settings restored for {'private' if is_private else 'normal'} mode"
+        )
 
     return current_session
 
@@ -516,20 +549,54 @@ def update_persona():
         return jsonify({"status": "error", "message": str(e)})
 
 
-def create_audio_response(text, style):
-    """Create audio response from text using gTTS"""
+@app.route("/tts", methods=["POST"])
+def text_to_speech():
+    """Convert text to speech using NaverTTS"""
     try:
-        print("\n=== 음성 변환 시작 ===")
-        print(f"입력 텍스트 길이: {len(text)} 문자")
-        print(f"현재 스타일: {style}")  # 스타일 로깅 추가
+        data = request.json
+        text = data.get("text")
+
+        if not text:
+            return jsonify({"status": "error", "message": "텍스트가 없습니다."}), 400
+
+        # 음성 파일 생성
+        audio_data = create_audio_response(text)
+        if not audio_data:
+            return (
+                jsonify({"status": "error", "message": "음성 변환에 실패했습니다."}),
+                500,
+            )
+
+        return send_file(
+            io.BytesIO(audio_data),
+            mimetype="audio/mp3",
+            as_attachment=True,
+            download_name="response.mp3",
+        )
+
+    except Exception as e:
+        logger.error(f"TTS error: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def create_audio_response(text):
+    """Create audio response from text using NaverTTS"""
+    try:
+        # NaverTTS 설정
+        client_id = os.getenv("NAVER_CLIENT_ID")
+        client_secret = os.getenv("NAVER_CLIENT_SECRET")
+
+        if not client_id or not client_secret:
+            logger.error("Naver API credentials not found")
+            return None
 
         # 텍스트가 비어있는 경우 처리
         if not text or not text.strip():
-            print("텍스트가 비어있습니다.")
+            logger.error("Empty text input")
             return None
 
         # 긴 텍스트를 여러 청크로 나누기
-        def split_text(text, max_length=3000):  # 최대 길이를 3000자로 증가
+        def split_text(text, max_length=1000):
             # 문장 단위로 분리 (마침표, 느낌표, 물음표 기준)
             sentences = []
             current_sentence = ""
@@ -543,68 +610,53 @@ def create_audio_response(text, style):
             if current_sentence.strip():  # 마지막 문장 처리
                 sentences.append(current_sentence.strip())
 
-            # 전체 텍스트를 하나의 청크로 처리
-            full_text = " ".join(sentences)
+            # 청크로 나누기
+            chunks = []
+            current_chunk = ""
 
-            # 만약 텍스트가 너무 길다면 앞부분만 사용
-            if len(full_text) > max_length:
-                print(f"텍스트가 너무 깁니다. 처음 {max_length}자만 사용합니다.")
-                return [full_text[:max_length]]
+            for sentence in sentences:
+                if len(current_chunk) + len(sentence) > max_length:
+                    if current_chunk:
+                        chunks.append(current_chunk)
+                    current_chunk = sentence
+                else:
+                    current_chunk = (
+                        current_chunk + " " + sentence if current_chunk else sentence
+                    )
 
-            return [full_text]
+            if current_chunk:
+                chunks.append(current_chunk)
+
+            return chunks
 
         # 텍스트를 청크로 나누기
         text_chunks = split_text(text)
-        print(f"텍스트가 {len(text_chunks)}개의 청크로 나뉘었습니다.")
+        audio_chunks = []
 
-        if not text_chunks:
-            print("텍스트 청크가 없습니다.")
-            return None
+        # 각 청크를 음성으로 변환
+        for chunk in text_chunks:
+            encText = urllib.parse.quote(chunk)
+            data = f"speaker=nara&volume=0&speed=0&pitch=0&format=mp3&text=" + encText
 
-        # 첫 번째 청크 내용 출력 (디버깅용)
-        if text_chunks:
-            print(f"\n첫 번째 청크 내용 (처음 100자):")
-            print(text_chunks[0][:100])
-            print(f"첫 번째 청크 길이: {len(text_chunks[0])} 문자")
+            request = urllib.request.Request(
+                "https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts"
+            )
+            request.add_header("X-NCP-APIGW-API-KEY-ID", client_id)
+            request.add_header("X-NCP-APIGW-API-KEY", client_secret)
+            response = urllib.request.urlopen(request, data=data.encode("utf-8"))
 
-        audio_filename = f"response_{uuid.uuid4()}.mp3"
-        audio_path = os.path.join("app/static/audio", audio_filename)
-
-        # 첫 번째 청크를 음성으로 변환
-        try:
-            first_chunk = text_chunks[0]
-            if not first_chunk or not first_chunk.strip():
-                print("첫 번째 청크가 비어있습니다.")
-                return None
-
-            print("\n=== TTS 변환 시도 ===")
-            print(f"변환할 텍스트 (처음 100자): {first_chunk[:100]}")
-
-            # gTTS를 사용하여 음성 생성
-            tts = gTTS(text=first_chunk, lang="ko", slow=False)
-            tts.save(audio_path)
-
-            # 파일이 실제로 생성되었는지 확인
-            if os.path.exists(audio_path):
-                file_size = os.path.getsize(audio_path)
-                print(f"TTS 파일 생성 성공: {audio_path} (크기: {file_size} bytes)")
-                return f"/static/audio/{audio_filename}"
+            if response.getcode() == 200:
+                audio_chunks.append(response.read())
             else:
-                print(f"TTS 파일이 생성되지 않았습니다: {audio_path}")
+                logger.error(f"Error from Naver TTS API: {response.getcode()}")
                 return None
 
-        except Exception as e:
-            print(f"\nTTS 생성 실패:")
-            print(f"에러 타입: {type(e).__name__}")
-            print(f"에러 메시지: {str(e)}")
-            traceback.print_exc()
-            return None
+        # 모든 청크 합치기
+        return b"".join(audio_chunks)
 
     except Exception as e:
-        print(f"\n음성 변환 중 예외 발생:")
-        print(f"에러 타입: {type(e).__name__}")
-        print(f"에러 메시지: {str(e)}")
-        traceback.print_exc()
+        logger.error(f"Error in create_audio_response: {str(e)}")
+        logger.error(traceback.format_exc())
         return None
 
 
@@ -635,9 +687,19 @@ def ask():
         # Get current session and its settings
         current_session = get_current_session()
 
-        # Use client settings if provided, otherwise use session settings
-        current_style = settings.get("style") or current_session.get_style()
-        current_persona = settings.get("persona") or current_session.get_persona()
+        # Use session settings first, then fall back to client settings if not available
+        current_style = current_session.get_style() or settings.get("style", "normal")
+        current_persona = current_session.get_persona() or settings.get(
+            "persona", "professional"
+        )
+
+        # Update session with the final settings
+        current_session.update_style(current_style)
+        current_session.update_persona(current_persona)
+
+        # Save settings to session for non-private mode
+        if not is_private:
+            current_session.save_settings_to_session()
 
         print(
             f"최종 적용될 설정 - 스타일: {current_style}, 페르소나: {current_persona}"
@@ -684,7 +746,7 @@ def ask():
 
         # Generate audio response
         print("\n=== 음성 변환 시작 ===")
-        audio_url = create_audio_response(assistant_response, current_style)
+        audio_url = create_audio_response(assistant_response)
         print(f"음성 변환 결과: {'성공' if audio_url else '실패'}")
 
         # Update conversation history

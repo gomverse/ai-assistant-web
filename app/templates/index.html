@@ -16,7 +16,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="{{ url_for('static', filename='js/speech.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/settings.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/private-mode.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
     <style>
         @keyframes pulseWave {
             0% {
@@ -605,9 +607,10 @@
                     console.log('페르소나 업데이트 응답:', data);
 
                     if (data.status === 'success') {
-                        this.persona = newPersona;
-                        localStorage.setItem('aiPersona', newPersona);
-                        updatePersonaButtonStyles(newPersona);
+                        // 서버 응답이 성공일 때만 로컬 설정 업데이트
+                        this.persona = data.persona;
+                        localStorage.setItem('aiPersona', data.persona);
+                        updatePersonaButtonStyles(data.persona);
                         
                         if (showMessage) {
                             appendMessage('assistant', data.message);
@@ -643,9 +646,10 @@
                     console.log('스타일 업데이트 응답:', data);
 
                     if (data.status === 'success') {
-                        this.style = newStyle;
-                        localStorage.setItem('aiStyle', newStyle);
-                        updateStyleButtonStyles(newStyle);
+                        // 서버 응답이 성공일 때만 로컬 설정 업데이트
+                        this.style = data.style;
+                        localStorage.setItem('aiStyle', data.style);
+                        updateStyleButtonStyles(data.style);
                         
                         if (showMessage) {
                             appendMessage('assistant', data.message);
