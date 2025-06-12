@@ -1,155 +1,115 @@
 class Settings {
     constructor() {
-        this.style = 'normal';  // 기본 스타일
-        this.persona = 'professional';  // 기본 페르소나
+        // DOM이 완전히 로드된 후에 초기화
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.initialize());
+        } else {
+            this.initialize();
+        }
+    }
 
-        // UI 요소
-        this.styleModal = document.getElementById('styleModal');
-        this.personaModal = document.getElementById('personaModal');
-        this.styleButtons = document.querySelectorAll('.style-btn');
-        this.personaButtons = document.querySelectorAll('.persona-btn');
-
-        // 모달 열기/닫기 버튼
-        this.styleSettingsBtn = document.getElementById('styleSettingsBtn');
-        this.closeStyleModal = document.getElementById('closeStyleModal');
-        this.personaSettingsBtn = document.getElementById('personaSettingsBtn');
-        this.closePersonaModal = document.getElementById('closePersonaModal');
+    initialize() {
+        this.settingsToggle = document.getElementById('settingsToggle');
+        this.settingsMenu = document.getElementById('settingsMenu');
+        this.clearChatBtn = document.getElementById('clearChat');
+        this.exportChatBtn = document.getElementById('exportChat');
+        
+        if (!this.settingsToggle || !this.settingsMenu) {
+            console.error('Settings: Required DOM elements not found');
+            return;
+        }
 
         this.setupEventListeners();
-        this.loadSettings();
     }
 
     setupEventListeners() {
-        // 스타일 설정 모달
-        this.styleSettingsBtn.addEventListener('click', () => this.styleModal.classList.remove('hidden'));
-        this.closeStyleModal.addEventListener('click', () => this.styleModal.classList.add('hidden'));
-
-        // 페르소나 설정 모달
-        this.personaSettingsBtn.addEventListener('click', () => this.personaModal.classList.remove('hidden'));
-        this.closePersonaModal.addEventListener('click', () => this.personaModal.classList.add('hidden'));
-
-        // 스타일 버튼 이벤트
-        this.styleButtons.forEach(button => {
-            button.addEventListener('click', async () => {
-                const style = button.id.replace('Style', '');
-                await this.updateStyle(style);
-                this.styleModal.classList.add('hidden');
-            });
+        // 설정 메뉴 토글
+        this.settingsToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleMenu();
         });
 
-        // 페르소나 버튼 이벤트
-        this.personaButtons.forEach(button => {
-            button.addEventListener('click', async () => {
-                const persona = button.id.replace('Persona', '');
-                await this.updatePersona(persona);
-                this.personaModal.classList.add('hidden');
-            });
-        });
-
-        // ESC 키로 모달 닫기
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.styleModal.classList.add('hidden');
-                this.personaModal.classList.add('hidden');
+        // 메뉴 외부 클릭 시 닫기
+        document.addEventListener('click', (e) => {
+            if (this.settingsMenu.classList.contains('show') &&
+                !this.settingsMenu.contains(e.target) && 
+                !this.settingsToggle.contains(e.target)) {
+                this.closeMenu();
             }
         });
 
-        // 모달 외부 클릭 시 닫기
-        window.addEventListener('click', (e) => {
-            if (e.target === this.styleModal) this.styleModal.classList.add('hidden');
-            if (e.target === this.personaModal) this.personaModal.classList.add('hidden');
-        });
-    }
-
-    async updateStyle(style, showNotification = true) {
-        try {
-            const response = await fetch('/update_style', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Private-Mode': window.privateMode.isPrivateMode() ? 'true' : 'false'
-                },
-                body: JSON.stringify({ style })
+        // 대화 내용 지우기
+        if (this.clearChatBtn) {
+            this.clearChatBtn.addEventListener('click', () => {
+                this.clearChat();
+                this.closeMenu();
             });
+        }
 
-            const data = await response.json();
-            if (data.status === 'success') {
-                this.style = style;
-                this.saveSettings();
-                
-                // 스타일 버튼 상태 업데이트
-                this.styleButtons.forEach(button => {
-                    button.classList.toggle('ring-2', button.id === `${style}Style`);
-                    button.classList.toggle('ring-white', button.id === `${style}Style`);
-                });
-
-                if (showNotification) {
-                    window.showNotification(data.message, 'success');
-                }
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Error updating style:', error);
-            window.showNotification('스타일 설정 중 오류가 발생했습니다.', 'error');
+        // 대화 내용 내보내기
+        if (this.exportChatBtn) {
+            this.exportChatBtn.addEventListener('click', () => {
+                this.exportChat();
+                this.closeMenu();
+            });
         }
     }
 
-    async updatePersona(persona, showNotification = true) {
-        try {
-            const response = await fetch('/update_persona', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Private-Mode': window.privateMode.isPrivateMode() ? 'true' : 'false'
-                },
-                body: JSON.stringify({ persona })
-            });
+    toggleMenu() {
+        this.settingsMenu.classList.toggle('show');
+        this.settingsToggle.classList.toggle('active');
+    }
 
-            const data = await response.json();
-            if (data.status === 'success') {
-                this.persona = persona;
-                this.saveSettings();
-                
-                // 페르소나 버튼 상태 업데이트
-                this.personaButtons.forEach(button => {
-                    button.classList.toggle('ring-2', button.id === `${persona}Persona`);
-                    button.classList.toggle('ring-white', button.id === `${persona}Persona`);
-                });
+    closeMenu() {
+        this.settingsMenu.classList.remove('show');
+        this.settingsToggle.classList.remove('active');
+    }
 
-                if (showNotification) {
-                    window.showNotification(data.message, 'success');
-                }
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Error updating persona:', error);
-            window.showNotification('페르소나 설정 중 오류가 발생했습니다.', 'error');
+    clearChat() {
+        const chatContainer = document.getElementById('chatContainer');
+        if (chatContainer) {
+            chatContainer.innerHTML = '';
+            // 시작 메시지 다시 표시
+            appendMessage('assistant', '안녕하세요! 무엇을 도와드릴까요?');
+            showNotification('대화 내용이 삭제되었습니다.', 'success');
         }
     }
 
-    saveSettings() {
-        const isPrivate = window.privateMode.isPrivateMode();
-        const storage = isPrivate ? sessionStorage : localStorage;
-        const prefix = isPrivate ? 'private_' : '';
-        
-        storage.setItem(`${prefix}ai_style`, this.style);
-        storage.setItem(`${prefix}ai_persona`, this.persona);
-    }
+    exportChat() {
+        const chatContainer = document.getElementById('chatContainer');
+        if (!chatContainer) return;
 
-    loadSettings() {
-        const isPrivate = window.privateMode.isPrivateMode();
-        const storage = isPrivate ? sessionStorage : localStorage;
-        const prefix = isPrivate ? 'private_' : '';
-        
-        const savedStyle = storage.getItem(`${prefix}ai_style`);
-        const savedPersona = storage.getItem(`${prefix}ai_persona`);
+        const messages = [];
+        const messageElements = chatContainer.querySelectorAll('.message');
 
-        if (savedStyle) this.updateStyle(savedStyle, false);
-        if (savedPersona) this.updatePersona(savedPersona, false);
+        messageElements.forEach(el => {
+            const role = el.classList.contains('user-message') ? 'User' : 'Assistant';
+            const content = el.querySelector('.message-content')?.textContent || '';
+            const time = el.querySelector('.message-time')?.textContent || '';
+            messages.push(`[${time}] ${role}: ${content}`);
+        });
+
+        if (messages.length === 0) {
+            showNotification('내보낼 대화 내용이 없습니다.', 'error');
+            return;
+        }
+
+        const text = messages.join('\n\n');
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        
+        a.href = url;
+        a.download = `chat-export-${timestamp}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showNotification('대화 내용이 저장되었습니다.', 'success');
     }
 }
 
-// 전역 설정 인스턴스 생성
-window.settings = new Settings(); 
+// 설정 초기화
+new Settings(); 

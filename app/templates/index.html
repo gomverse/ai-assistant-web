@@ -1,1029 +1,458 @@
 <!DOCTYPE html>
-<html lang="ko" class="dark:bg-gray-900">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 개인비서</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {}
-            }
-        }
-    </script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>나만의 스마트 AI 비서</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="{{ url_for('static', filename='js/speech.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/settings.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/private-mode.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
     <style>
-        @keyframes pulseWave {
-            0% {
-                transform: scale(1);
-                opacity: 1;
-            }
-            50% {
-                transform: scale(1.1);
-                opacity: 0.8;
-            }
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
+        :root {
+            --imessage-blue: #007AFF;
+            --imessage-gray: #E9E9EB;
+            --background-light: #F5F5F7;
+            --background-dark: #1C1C1E;
+            --bubble-blue: #0B93F6;
+            --bubble-gray: #E9E9EB;
         }
 
-        @keyframes soundWave {
-            0% {
-                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
-            }
-            70% {
-                box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
-            }
+        .dark {
+            --background-light: #1C1C1E;
+            --bubble-gray: #2C2C2E;
         }
 
-        .voice-btn-container {
+        /* 전체 레이아웃 */
+        body {
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--background-light);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 헤더 스타일 */
+        .header {
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 44px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .dark .header {
+            background-color: rgba(28, 28, 30, 0.8);
+            border-bottom-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .header-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--imessage-blue);
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        /* 설정 메뉴 */
+        .settings-menu {
+            display: none;
             position: absolute;
+            top: 60px;
             right: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 0.5rem 0;
+            min-width: 200px;
         }
 
-        .voice-btn {
+        .dark .settings-menu {
+            background: #2C2C2E;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .settings-menu.show {
+            display: block;
+        }
+
+        .settings-item {
+            padding: 0.8rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .settings-item:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .dark .settings-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        /* 메인 컨테이너 */
+        .main-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 1rem;
+            overflow: hidden;
+        }
+
+        /* 채팅 컨테이너 */
+        .chat-wrapper {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .dark .chat-wrapper {
+            background: var(--background-dark);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        #chatContainer {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            margin-bottom: 70px;
+            scroll-behavior: smooth;
+        }
+
+        /* 메시지 스타일 */
+        .message {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 1rem;
+            max-width: 70%;
+            animation: fadeIn 0.3s ease;
+            position: relative;
+        }
+
+        .user-message {
+            align-self: flex-end;
+        }
+
+        .assistant-message {
+            align-self: flex-start;
+        }
+
+        .message-content {
+            padding: 0.8rem 1rem;
+            border-radius: 20px;
+            font-size: 1rem;
+            line-height: 1.4;
+            position: relative;
+        }
+
+        .user-message .message-content {
+            background-color: var(--imessage-blue);
+            color: white;
+            margin-left: 40px;
+            border-bottom-right-radius: 5px;
+        }
+
+        .assistant-message .message-content {
+            background-color: var(--bubble-gray);
+            color: black;
+            margin-right: 40px;
+            border-bottom-left-radius: 5px;
+        }
+
+        .dark .assistant-message .message-content {
+            color: white;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: #8E8E93;
+            margin: 0.2rem 0.5rem;
+            opacity: 0.7;
+        }
+
+        /* 입력 폼 스타일 */
+        .input-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 0.8rem 1rem;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.8rem;
+        }
+
+        .dark .input-container {
+            background-color: rgba(28, 28, 30, 0.8);
+            border-top-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .input-wrapper {
+            position: relative;
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.8rem;
+            min-height: 44px;
+        }
+
+        #user-input {
+            flex: 1;
+            min-height: 44px;
+            max-height: 120px;
+            border: none;
+            background-color: var(--bubble-gray);
+            border-radius: 20px;
+            padding: 12px 16px;
+            resize: none;
+            line-height: 1.4;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .dark #user-input {
+            background-color: #2C2C2E;
+            color: white;
+        }
+
+        #user-input:focus {
+            outline: none;
+            background-color: white;
+            box-shadow: 0 0 0 1px var(--imessage-blue);
+        }
+
+        .dark #user-input:focus {
+            background-color: #3A3A3C;
+        }
+
+        /* 버튼 스타일 */
+        .circle-button {
             width: 44px;
             height: 44px;
-            background: #3B82F6;
+            border: none;
             border-radius: 50%;
+            background: transparent;
+            color: var(--imessage-blue);
+            font-size: 1.2rem;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-
-        .voice-btn:hover {
-            background: #2563EB;
-        }
-
-        .voice-btn i {
-            color: white;
-            font-size: 20px;
-        }
-
-        .voice-btn.listening {
-            animation: pulseWave 2s infinite;
-        }
-
-        .voice-waves {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 3px;
-        }
-
-        .listening .voice-waves {
-            opacity: 1;
-        }
-
-        .voice-wave {
-            position: relative;
-            background: rgba(255, 255, 255, 0.4);
-            width: 3px;
-            height: 20px;
-            animation: waveAnimation 1s infinite;
-            transition: height 0.2s ease;
-        }
-
-        @keyframes waveAnimation {
-            0% { height: 6px; }
-            50% { height: 20px; }
-            100% { height: 6px; }
-        }
-
-        /* 비공개 모드 스타일 */
-        .private-mode-active {
-            background: #DC2626 !important;
-        }
-
-        .private-mode-active .private-mode-indicator {
-            transform: translateX(100%);
-        }
-
-        /* 비공개 모드일 때 내보내기/저장 버튼 비활성화 스타일 */
-        .private-mode-on .disabled-in-private {
-            opacity: 0.5;
-            cursor: not-allowed;
-            pointer-events: none;
-        }
-
-        /* 비공개 모드 알림 배너 */
-        .private-mode-banner {
-            display: none;
-            background-color: #DC2626;
-            color: white;
-            text-align: center;
-            padding: 0.5rem;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 50;
-        }
-
-        .private-mode-on .private-mode-banner {
-            display: block;
-        }
-
-        /* 음성 출력 모드 스타일 */
-        .voice-output-active {
-            background: #059669 !important;
-        }
-
-        .voice-output-active .voice-output-indicator {
-            transform: translateX(100%);
-        }
-
-        .voice-output-icon {
-            transition: color 0.3s ease;
-        }
-
-        .voice-output-active .voice-output-icon {
-            color: #10B981;
-        }
-
-        /* 토글 버튼 공통 스타일 */
-        .toggle-btn {
-            position: relative;
-            padding: 0.25rem 0.75rem !important;
-        }
-
-        .toggle-switch {
-            position: relative;
-            width: 2.5rem;
-            height: 1.25rem;
-            background-color: #374151;
-            border-radius: 9999px;
-            margin-left: 0.5rem;
+            transition: all 0.2s ease;
             flex-shrink: 0;
+            padding: 0;
         }
 
-        .toggle-btn-content {
+        .circle-button:hover {
+            background-color: rgba(0, 122, 255, 0.1);
+        }
+
+        .circle-button:disabled {
+            color: #8E8E93;
+            cursor: not-allowed;
+        }
+
+        .circle-button.active {
+            background-color: var(--imessage-blue);
+            color: white;
+        }
+
+        /* 로딩 인디케이터 */
+        .typing-indicator {
             display: flex;
-            align-items: center;
-            white-space: nowrap;
+            gap: 0.3rem;
+            padding: 0.8rem 1rem;
+            background: var(--bubble-gray);
+            border-radius: 20px;
+            width: fit-content;
+            margin: 0.5rem 0;
+            border-bottom-left-radius: 5px;
         }
 
-        .toggle-indicator {
-            position: absolute;
-            left: 0.125rem;
-            top: 0.125rem;
-            width: 1rem;
-            height: 1rem;
-            background-color: white;
-            border-radius: 9999px;
-            transition: transform 0.2s ease;
+        .dark .typing-indicator {
+            background: #2C2C2E;
         }
 
-        /* 비공개 모드 스타일 */
-        .private-mode-active {
-            background: #DC2626 !important;
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #8E8E93;
+            border-radius: 50%;
+            animation: typingAnimation 1.4s infinite;
         }
 
-        .private-mode-active .toggle-switch {
-            background-color: #991B1B;
+        /* 애니메이션 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        .private-mode-active .toggle-indicator {
-            transform: translateX(1.25rem);
+        @keyframes typingAnimation {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
         }
 
-        /* 음성 출력 모드 스타일 */
-        .voice-output-active {
-            background: #059669 !important;
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        /* 다크 모드 토글 애니메이션 */
+        @keyframes moonToSun {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
-        .voice-output-active .toggle-switch {
-            background-color: #065F46;
+        @keyframes sunToMoon {
+            from { transform: rotate(360deg); }
+            to { transform: rotate(0deg); }
         }
 
-        .voice-output-active .toggle-indicator {
-            transform: translateX(1.25rem);
+        .theme-toggle-icon {
+            transition: transform 0.5s ease;
         }
 
-        .voice-output-icon {
-            transition: color 0.3s ease;
+        .theme-toggle-icon.sun {
+            animation: moonToSun 0.5s ease;
         }
 
-        .voice-output-active .voice-output-icon {
-            color: #10B981;
+        .theme-toggle-icon.moon {
+            animation: sunToMoon 0.5s ease;
         }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200" id="body">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
-        <header class="text-center mb-8">
-            <!-- 제목과 다크모드 설정 -->
-            <div class="flex justify-center items-center mb-2">
-                <h1 class="text-3xl font-bold text-gray-800 dark:text-white transition-colors duration-200">AI 개인비서</h1>
-                <button id="themeToggle" class="ml-4 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                    <i class="fas fa-moon text-gray-600 dark:text-gray-300" id="themeIcon"></i>
+<body>
+    <div class="chat-container">
+        <!-- 헤더 영역 -->
+        <div class="chat-header">
+            <h1 class="chat-title">나만의 스마트 AI 비서</h1>
+            <div class="header-controls">
+                <button id="aiSettings" class="control-btn" title="AI 설정">
+                    <i class="fas fa-robot"></i>
+                </button>
+                <button id="voiceOutput" class="control-btn" title="음성 출력">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <button id="themeToggle" class="control-btn" title="테마 변경">
+                    <i class="fas fa-moon theme-toggle-icon"></i>
+                </button>
+                <button id="privateMode" class="control-btn" title="비공개 모드">
+                    <i class="fas fa-user-secret"></i>
+                </button>
+                <button id="settingsToggle" class="control-btn" title="설정">
+                    <i class="fas fa-cog"></i>
                 </button>
             </div>
-            
-            <!-- 소제목 -->
-            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-200 mb-6 font-bold">당신의 일상을 더 스마트하게</p>
-            
-            <!-- 기능 버튼들 -->
-            <div class="flex justify-center items-center gap-4 flex-wrap">
-                <button id="privateMode" 
-                        class="toggle-btn px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded-full flex items-center transition-colors">
-                    <div class="toggle-btn-content">
-                        <i class="fas fa-eye-slash"></i>
-                        <span class="mx-1">비공개 모드</span>
-                        <div class="toggle-switch">
-                            <div class="toggle-indicator"></div>
-                        </div>
-                    </div>
-                </button>
+        </div>
 
-                <button id="voiceOutput" 
-                        class="toggle-btn px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded-full flex items-center transition-colors">
-                    <div class="toggle-btn-content">
-                        <i class="fas fa-volume-up"></i>
-                        <span class="mx-1">음성 출력</span>
-                        <div class="toggle-switch">
-                            <div class="toggle-indicator"></div>
-                        </div>
-                    </div>
-                </button>
-
-                <button id="personaSettingsBtn" 
-                        class="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-user-circle"></i>
-                    <span>AI 성격</span>
-                </button>
-
-                <button id="styleSettingsBtn" 
-                        class="px-3 py-1 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-sliders-h"></i>
-                    <span>응답 길이</span>
-                </button>
-
-                <button id="sessionManageBtn" 
-                        class="px-3 py-1 text-sm bg-yellow-500 hover:bg-yellow-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-save"></i>
-                    <span>대화 세션</span>
-                </button>
-
-                <button id="exportChat" 
-                        class="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-download"></i>
-                    <span>대화 내보내기</span>
-                </button>
-
-                <button id="clearContext" 
-                        class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-trash"></i>
-                    <span>대화 초기화</span>
-                </button>
-
-                <!-- Search input -->
-                <div class="relative">
-                    <input type="text" 
-                           id="searchInput" 
-                           placeholder="대화 내용 검색..."
-                           class="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full w-40 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <button id="searchButton"
-                            class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
-                        <i class="fas fa-search text-sm"></i>
+        <!-- AI 설정 메뉴 -->
+        <div id="aiSettingsMenu" class="settings-menu">
+            <div class="settings-section">
+                <h3>AI 페르소나</h3>
+                <div class="settings-buttons">
+                    <button data-persona="professional" class="settings-btn active">
+                        <i class="fas fa-briefcase"></i>
+                        전문가
+                    </button>
+                    <button data-persona="friendly" class="settings-btn">
+                        <i class="fas fa-smile"></i>
+                        친근한
+                    </button>
+                    <button data-persona="creative" class="settings-btn">
+                        <i class="fas fa-paint-brush"></i>
+                        창의적
                     </button>
                 </div>
             </div>
-        </header>
-
-        <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-200">
-            <div class="chat-container mb-6 p-6 h-[500px] overflow-y-auto" id="chatContainer">
-                <!-- 대화 내용이 여기에 동적으로 추가됩니다 -->
-            </div>
-
-            <div class="p-4 border-t border-gray-200 dark:border-gray-700">
-                <form id="questionForm" class="flex gap-2" onsubmit="return handleFormSubmit(event)">
-                    <div class="relative flex-1">
-                        <input type="text" 
-                               id="user-input" 
-                               class="w-full p-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                               placeholder="무엇을 도와드릴까요?"
-                               required>
-                        <div class="voice-btn-container">
-                            <button type="button" 
-                                    id="voice-input-btn"
-                                    class="voice-btn">
-                                <i class="fas fa-microphone"></i>
-                                <div class="voice-waves">
-                                    <div class="voice-wave" style="animation-delay: -0.4s;"></div>
-                                    <div class="voice-wave" style="animation-delay: -0.3s;"></div>
-                                    <div class="voice-wave" style="animation-delay: -0.2s;"></div>
-                                    <div class="voice-wave" style="animation-delay: -0.1s;"></div>
-                                    <div class="voice-wave"></div>
-                                </div>
-                            </button>
-                        </div>
-                        <div id="loadingIndicator" class="hidden absolute right-4 top-1/2 transform -translate-y-1/2">
-                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-                        </div>
-                    </div>
-                    <button type="submit" 
-                            class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span>전송</span>
-                        <i class="fas fa-paper-plane"></i>
+            <div class="settings-section">
+                <h3>응답 길이</h3>
+                <div class="settings-buttons">
+                    <button data-length="short" class="settings-btn">
+                        <i class="fas fa-text-height fa-sm"></i>
+                        짧게
                     </button>
-                </form>
-            </div>
-        </main>
-    </div>
-
-    <!-- Search results modal -->
-    <div id="searchModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">검색 결과</h3>
-                <button id="closeSearchModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div id="searchResults" class="space-y-4">
-                <!-- Search results will be inserted here -->
+                    <button data-length="medium" class="settings-btn active">
+                        <i class="fas fa-text-height"></i>
+                        보통
+                    </button>
+                    <button data-length="long" class="settings-btn">
+                        <i class="fas fa-text-height fa-lg"></i>
+                        길게
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- AI 성격 설정 모달 -->
-    <div id="personaModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">AI 성격 설정</h3>
-                <button id="closePersonaModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="space-y-4">
-                <button id="friendlyPersona" class="persona-btn w-full p-4 text-left rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="font-bold text-lg">친근한 친구</div>
-                            <p class="text-sm text-blue-100">친구처럼 편하게 대화하는 스타일</p>
-                        </div>
-                        <i class="fas fa-smile text-2xl"></i>
-                    </div>
-                </button>
-                <button id="professionalPersona" class="persona-btn w-full p-4 text-left rounded-lg bg-gray-500 hover:bg-gray-600 text-white transition-colors">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="font-bold text-lg">전문가</div>
-                            <p class="text-sm text-gray-100">정중하고 전문적인 스타일</p>
-                        </div>
-                        <i class="fas fa-user-tie text-2xl"></i>
-                    </div>
-                </button>
-                <button id="cynicalPersona" class="persona-btn w-full p-4 text-left rounded-lg bg-purple-500 hover:bg-purple-600 text-white transition-colors">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="font-bold text-lg">냉소적</div>
-                            <p class="text-sm text-purple-100">시니컬하고 귀찮아하는 스타일</p>
-                        </div>
-                        <i class="fas fa-meh-rolling-eyes text-2xl"></i>
-                    </div>
-                </button>
-            </div>
+        <!-- 설정 메뉴 -->
+        <div id="settingsMenu" class="settings-menu">
+            <button id="clearChat" class="settings-btn">
+                <i class="fas fa-trash"></i>
+                대화 내용 지우기
+            </button>
+            <button id="exportChat" class="settings-btn">
+                <i class="fas fa-download"></i>
+                대화 내용 저장
+            </button>
         </div>
-    </div>
 
-    <!-- 응답 길이 설정 모달 -->
-    <div id="styleModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">응답 길이 설정</h3>
-                <button id="closeStyleModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="space-y-4">
-                <button id="conciseStyle" class="style-btn w-full p-4 text-left rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="font-bold text-lg">간결하게</div>
-                            <p class="text-sm text-green-100">핵심 내용만, 1~2문장으로 답변</p>
-                        </div>
-                        <i class="fas fa-compress-alt text-2xl"></i>
-                    </div>
-                </button>
-                <button id="normalStyle" class="style-btn w-full p-4 text-left rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="font-bold text-lg">일반적으로</div>
-                            <p class="text-sm text-blue-100">균형잡힌 일반적인 길이, 4~6문장으로 답변</p>
-                        </div>
-                        <i class="fas fa-align-left text-2xl"></i>
-                    </div>
-                </button>
-                <button id="detailedStyle" class="style-btn w-full p-4 text-left rounded-lg bg-purple-500 hover:bg-purple-600 text-white transition-colors">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="font-bold text-lg">상세하게</div>
-                            <p class="text-sm text-purple-100">자세하고 풍부한 설명, 8문장 이상으로 답변</p>
-                        </div>
-                        <i class="fas fa-align-justify text-2xl"></i>
-                    </div>
-                </button>
-            </div>
-        </div>
-    </div>
+        <!-- 메시지 영역 -->
+        <div id="chatMessages" class="chat-messages"></div>
 
-    <!-- Export format modal -->
-    <div id="exportModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">대화 내보내기</h3>
-                <button id="closeExportModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
+        <!-- 입력 영역 -->
+        <div class="chat-input">
+            <form id="questionForm" class="input-form">
+                <button type="button" id="voiceInput" class="control-btn voice-btn" title="음성 입력">
+                    <i class="fas fa-microphone"></i>
                 </button>
-            </div>
-            <div class="space-y-4">
-                <p class="text-gray-600 dark:text-gray-300">파일 형식을 선택해주세요:</p>
-                <div class="flex flex-col gap-3">
-                    <button id="exportTXT" class="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2">
-                        <i class="fas fa-file-alt"></i>
-                        <span>TXT 파일로 내보내기</span>
-                    </button>
-                    <button id="exportPDF" class="px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2">
-                        <i class="fas fa-file-pdf"></i>
-                        <span>PDF 파일로 내보내기</span>
-                    </button>
+                <textarea 
+                    id="user-input" 
+                    placeholder="메시지를 입력하세요..." 
+                    rows="1"
+                    required
+                ></textarea>
+                <button type="submit" class="send-btn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+            <div id="loadingIndicator" class="loading-indicator hidden">
+                <div class="loading-dots">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Session management modal -->
-    <div id="sessionModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">대화 세션 관리</h3>
-                <button id="closeSessionModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <!-- Save session form -->
-            <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h4 class="font-medium text-gray-800 dark:text-white mb-2">현재 대화 저장</h4>
-                <div class="flex gap-2">
-                    <input type="text" 
-                           id="sessionNameInput" 
-                           placeholder="세션 이름을 입력하세요"
-                           class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-200">
-                    <button id="saveSessionBtn" 
-                            class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2">
-                        <i class="fas fa-save"></i>
-                        <span>저장</span>
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Sessions list -->
-            <div>
-                <h4 class="font-medium text-gray-800 dark:text-white mb-2">저장된 세션 목록</h4>
-                <div id="sessionsList" class="space-y-2 max-h-[400px] overflow-y-auto">
-                    <!-- Sessions will be loaded here -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 비공개 모드 배너 -->
-    <div class="private-mode-banner">
-        <i class="fas fa-eye-slash mr-2"></i>
-        비공개 모드가 활성화되었습니다. 대화 내용이 저장되지 않습니다.
-    </div>
-
-    <script>
-        // 전역 변수 선언
-        let isPrivateMode = false;
-        let isVoiceOutputEnabled = localStorage.getItem('voiceOutputEnabled') === 'true';
-
-        // DOM 요소 참조
-        const bodyElement = document.body;
-        const htmlElement = document.documentElement;
-        const chatContainer = document.getElementById('chatContainer');
-        const messageForm = document.getElementById('messageForm');
-        const messageInput = document.getElementById('messageInput');
-        const voiceOutputBtn = document.getElementById('voiceOutput');
-        const personaModal = document.getElementById('personaModal');
-        const personaSettingsBtn = document.getElementById('personaSettingsBtn');
-        const closePersonaModal = document.getElementById('closePersonaModal');
-        const styleModal = document.getElementById('styleModal');
-        const styleSettingsBtn = document.getElementById('styleSettingsBtn');
-        const closeStyleModal = document.getElementById('closeStyleModal');
-        const sessionModal = document.getElementById('sessionModal');
-        const sessionManageBtn = document.getElementById('sessionManageBtn');
-        const closeSessionModal = document.getElementById('closeSessionModal');
-        const themeToggle = document.getElementById('themeToggle');
-        const themeIcon = document.getElementById('themeIcon');
-
-        // 테마 설정 함수
-        function setTheme(isDark) {
-            if (isDark) {
-                bodyElement.classList.add('dark');
-                htmlElement.classList.add('dark');
-                themeIcon.classList.remove('fa-moon');
-                themeIcon.classList.add('fa-sun');
-            } else {
-                bodyElement.classList.remove('dark');
-                htmlElement.classList.remove('dark');
-                themeIcon.classList.remove('fa-sun');
-                themeIcon.classList.add('fa-moon');
-            }
-            localStorage.setItem('darkMode', isDark);
-        }
-
-        // 설정 관리 객체
-        const settings = {
-            persona: 'professional',
-            style: 'normal',
-            
-            // 설정 초기화
-            async init() {
-                console.log('설정 초기화 시작');
-                
-                // 저장된 설정 불러오기
-                this.persona = localStorage.getItem('aiPersona') || 'professional';
-                this.style = localStorage.getItem('aiStyle') || 'normal';
-                
-                console.log('로컬 스토리지에서 불러온 설정:', { persona: this.persona, style: this.style });
-                
-                // UI 업데이트
-                updatePersonaButtonStyles(this.persona);
-                updateStyleButtonStyles(this.style);
-                
-                // 서버에 설정 전송
-                try {
-                    console.log('서버에 설정 전송 시도');
-                    await Promise.all([
-                        this.updatePersona(this.persona, false),
-                        this.updateStyle(this.style, false)
-                    ]);
-                    console.log('서버 설정 업데이트 완료');
-                } catch (error) {
-                    console.error('서버 설정 업데이트 실패:', error);
-                }
-            },
-            
-            // 페르소나 설정 업데이트
-            async updatePersona(newPersona, showMessage = true) {
-                console.log('페르소나 업데이트 시도:', newPersona);
-                try {
-                    const response = await fetch('/update_persona', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Private-Mode': isPrivateMode ? 'true' : 'false'
-                        },
-                        body: JSON.stringify({ persona: newPersona })
-                    });
-
-                    const data = await response.json();
-                    console.log('페르소나 업데이트 응답:', data);
-
-                    if (data.status === 'success') {
-                        // 서버 응답이 성공일 때만 로컬 설정 업데이트
-                        this.persona = data.persona;
-                        localStorage.setItem('aiPersona', data.persona);
-                        updatePersonaButtonStyles(data.persona);
-                        
-                        if (showMessage) {
-                            appendMessage('assistant', data.message);
-                            personaModal.classList.add('hidden');
-                        }
-                    } else {
-                        if (showMessage) {
-                            appendMessage('error', data.message || 'AI 성격 설정 중 오류가 발생했습니다.');
-                        }
-                    }
-                } catch (error) {
-                    console.error('AI 성격 설정 중 오류 발생:', error);
-                    if (showMessage) {
-                        appendMessage('error', 'AI 성격 설정 중 오류가 발생했습니다.');
-                    }
-                }
-            },
-            
-            // 응답 길이 설정 업데이트
-            async updateStyle(newStyle, showMessage = true) {
-                console.log('스타일 업데이트 시도:', newStyle);
-                try {
-                    const response = await fetch('/update_style', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Private-Mode': isPrivateMode ? 'true' : 'false'
-                        },
-                        body: JSON.stringify({ style: newStyle })
-                    });
-
-                    const data = await response.json();
-                    console.log('스타일 업데이트 응답:', data);
-
-                    if (data.status === 'success') {
-                        // 서버 응답이 성공일 때만 로컬 설정 업데이트
-                        this.style = data.style;
-                        localStorage.setItem('aiStyle', data.style);
-                        updateStyleButtonStyles(data.style);
-                        
-                        if (showMessage) {
-                            appendMessage('assistant', data.message);
-                            styleModal.classList.add('hidden');
-                        }
-                    } else {
-                        if (showMessage) {
-                            appendMessage('error', data.message || 'AI 응답 길이 설정 중 오류가 발생했습니다.');
-                        }
-                    }
-                } catch (error) {
-                    console.error('AI 응답 길이 설정 중 오류 발생:', error);
-                    if (showMessage) {
-                        appendMessage('error', 'AI 응답 길이 설정 중 오류가 발생했습니다.');
-                    }
-                }
-            }
-        };
-
-        // 성격 버튼 스타일 업데이트
-        function updatePersonaButtonStyles(selectedPersona) {
-            document.querySelectorAll('.persona-btn').forEach(btn => {
-                const isSelected = btn.id === `${selectedPersona}Persona`;
-                btn.classList.toggle('ring-2', isSelected);
-                btn.classList.toggle('ring-white', isSelected);
-                btn.classList.toggle('ring-offset-2', isSelected);
-                btn.classList.toggle('ring-offset-gray-800', isSelected);
-            });
-        }
-
-        // 응답 길이 버튼 스타일 업데이트
-        function updateStyleButtonStyles(selectedStyle) {
-            document.querySelectorAll('.style-btn').forEach(btn => {
-                const isSelected = btn.id === `${selectedStyle}Style`;
-                btn.classList.toggle('ring-2', isSelected);
-                btn.classList.toggle('ring-white', isSelected);
-                btn.classList.toggle('ring-offset-2', isSelected);
-                btn.classList.toggle('ring-offset-gray-800', isSelected);
-            });
-        }
-
-        // 모달 이벤트 리스너 설정
-        function setupModalListeners() {
-            // AI 성격 설정 모달
-            personaSettingsBtn.addEventListener('click', () => {
-                personaModal.classList.remove('hidden');
-            });
-
-            closePersonaModal.addEventListener('click', () => {
-                personaModal.classList.add('hidden');
-            });
-
-            personaModal.addEventListener('click', (e) => {
-                if (e.target === personaModal) {
-                    personaModal.classList.add('hidden');
-                }
-            });
-
-            // 응답 길이 설정 모달
-            styleSettingsBtn.addEventListener('click', () => {
-                styleModal.classList.remove('hidden');
-            });
-
-            closeStyleModal.addEventListener('click', () => {
-                styleModal.classList.add('hidden');
-            });
-
-            styleModal.addEventListener('click', (e) => {
-                if (e.target === styleModal) {
-                    styleModal.classList.add('hidden');
-                }
-            });
-
-            // 세션 관리 모달
-            sessionManageBtn.addEventListener('click', () => {
-                sessionModal.classList.remove('hidden');
-                loadSessions();  // 세션 목록 로드
-            });
-
-            closeSessionModal.addEventListener('click', () => {
-                sessionModal.classList.add('hidden');
-            });
-
-            sessionModal.addEventListener('click', (e) => {
-                if (e.target === sessionModal) {
-                    sessionModal.classList.add('hidden');
-                }
-            });
-
-            // 성격 버튼 이벤트 리스너
-            document.getElementById('friendlyPersona').addEventListener('click', () => settings.updatePersona('friendly'));
-            document.getElementById('professionalPersona').addEventListener('click', () => settings.updatePersona('professional'));
-            document.getElementById('cynicalPersona').addEventListener('click', () => settings.updatePersona('cynical'));
-
-            // 응답 길이 버튼 이벤트 리스너
-            document.getElementById('conciseStyle').addEventListener('click', () => settings.updateStyle('concise'));
-            document.getElementById('normalStyle').addEventListener('click', () => settings.updateStyle('normal'));
-            document.getElementById('detailedStyle').addEventListener('click', () => settings.updateStyle('detailed'));
-        }
-
-        // 페이지 로드 시 초기화
-        document.addEventListener('DOMContentLoaded', async () => {
-            console.log('페이지 로드 시작');
-            
-            // 모달 이벤트 리스너 설정
-            setupModalListeners();
-            
-            // 설정 초기화
-            await settings.init();
-            
-            // 다크모드 설정 복원
-            const isDarkMode = localStorage.getItem('darkMode') === 'true';
-            setTheme(isDarkMode);
-            
-            // 음성 출력 설정 복원
-            if (isVoiceOutputEnabled) {
-                voiceOutputBtn.classList.add('voice-output-active');
-            }
-
-            // 비공개 모드 설정 복원
-            if (isPrivateMode) {
-                console.log('Loading private mode');
-                document.body.classList.add('private-mode');
-                document.querySelector('.private-mode-banner').classList.add('active');
-            } else {
-                console.log('Loading normal mode chat history');
-                await loadChatHistory();
-            }
-
-            console.log('페이지 로드 완료');
-        });
-
-        // 메시지 추가 함수
-        function appendMessage(type, content, audioUrl = null) {
-            const messageDiv = document.createElement('div');
-            const isDark = bodyElement.classList.contains('dark');
-            
-            messageDiv.className = `message ${type} mb-4 p-4 rounded-lg ${
-                type === 'user' 
-                    ? 'bg-blue-50 dark:bg-blue-900/30 ml-12' 
-                    : type === 'error'
-                        ? 'bg-red-50 dark:bg-red-900/30'
-                        : 'bg-gray-100 dark:bg-gray-700 mr-12'
-            }`;
-            
-            const icon = type === 'user' ? 'fa-user' : type === 'error' ? 'fa-exclamation-circle' : 'fa-robot';
-            const iconBg = type === 'user' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-            
-            messageDiv.innerHTML = `
-                <div class="flex items-start">
-                    <div class="flex-shrink-0 mr-3">
-                        <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center">
-                            <i class="fas ${icon} text-white"></i>
-                        </div>
-                    </div>
-                    <div class="flex-1 space-y-2">
-                        <div class="font-medium text-gray-800 dark:text-gray-200">
-                            ${type === 'user' ? '나' : type === 'error' ? '오류' : 'AI 비서'}
-                        </div>
-                        <div class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">${content}</div>
-                    </div>
-                </div>
-            `;
-            
-            chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        // 대화 내용 불러오기 함수
-        async function loadChatHistory() {
-            console.log('대화 내용 불러오기 시작...');
-            try {
-                const response = await fetch('/get_chat_history', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                console.log('받은 대화 내용:', data);
-                
-                if (data.status === 'success' && data.messages && data.messages.length > 0) {
-                    console.log(data.messages.length + '개의 메시지 복원');
-                    chatContainer.innerHTML = ''; // 기존 내용 제거
-                    
-                    // 각 메시지 복원
-                    data.messages.forEach(msg => {
-                        appendMessage(msg.role, msg.content, msg.audio_url);
-                    });
-                } else {
-                    console.log('복원할 대화 내용 없음');
-                    // 시작 메시지 표시
-                    appendMessage('assistant', '안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?\n예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"');
-                }
-            } catch (error) {
-                console.error('대화 내용 불러오기 실패:', error);
-                appendMessage('error', '대화 내용을 불러오는 중 오류가 발생했습니다.');
-            }
-        }
-
-        // 세션 목록 불러오기 함수
-        async function loadSessions() {
-            try {
-                const response = await fetch('/get_sessions', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                const sessionList = document.getElementById('sessionList');
-                sessionList.innerHTML = ''; // 기존 목록 제거
-
-                if (data.sessions && data.sessions.length > 0) {
-                    data.sessions.forEach(session => {
-                        const sessionItem = document.createElement('div');
-                        sessionItem.className = 'flex justify-between items-center p-4 bg-white dark:bg-gray-700 rounded-lg mb-2';
-                        sessionItem.innerHTML = `
-                            <div>
-                                <div class="font-medium text-gray-800 dark:text-white">${session.name || '무제 세션'}</div>
-                                <div class="text-sm text-gray-500 dark:text-gray-400">${session.created_at}</div>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="loadSession('${session.id}')" 
-                                        class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm">
-                                    불러오기
-                                </button>
-                                <button onclick="deleteSession('${session.id}')"
-                                        class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-full text-sm">
-                                    삭제
-                                </button>
-                            </div>
-                        `;
-                        sessionList.appendChild(sessionItem);
-                    });
-                } else {
-                    sessionList.innerHTML = '<div class="text-gray-500 dark:text-gray-400 text-center p-4">저장된 세션이 없습니다.</div>';
-                }
-            } catch (error) {
-                console.error('세션 목록 불러오기 실패:', error);
-                const sessionList = document.getElementById('sessionList');
-                sessionList.innerHTML = '<div class="text-red-500 dark:text-red-400 text-center p-4">세션 목록을 불러오는 중 오류가 발생했습니다.</div>';
-            }
-        }
-
-        // 세션 불러오기 함수
-        async function loadSession(sessionId) {
-            try {
-                const response = await fetch(`/load_session/${sessionId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    chatContainer.innerHTML = ''; // 기존 대화 내용 제거
-                    data.messages.forEach(msg => {
-                        appendMessage(msg.role, msg.content, msg.audio_url);
-                    });
-                    sessionModal.classList.add('hidden');
-                } else {
-                    appendMessage('error', data.message || '세션을 불러오는 중 오류가 발생했습니다.');
-                }
-            } catch (error) {
-                console.error('세션 불러오기 실패:', error);
-                appendMessage('error', '세션을 불러오는 중 오류가 발생했습니다.');
-            }
-        }
-
-        // 세션 삭제 함수
-        async function deleteSession(sessionId) {
-            if (!confirm('이 세션을 삭제하시겠습니까?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`/delete_session/${sessionId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    loadSessions(); // 세션 목록 새로고침
-                } else {
-                    alert(data.message || '세션 삭제 중 오류가 발생했습니다.');
-                }
-            } catch (error) {
-                console.error('세션 삭제 실패:', error);
-                alert('세션 삭제 중 오류가 발생했습니다.');
-            }
-        }
-
-        // 폼 제출 처리 함수
-        async function handleFormSubmit(event) {
-            if (event) {
-                event.preventDefault();
-            }
-            
-            const userInput = document.getElementById('user-input');
-            const submitButton = document.querySelector('button[type="submit"]');
-            const loadingIndicator = document.getElementById('loadingIndicator');
-            const question = userInput.value.trim();
-
-            if (!question) {
-                return false;
-            }
-
-            // UI 업데이트
-            userInput.value = '';
-            submitButton.disabled = true;
-            loadingIndicator.classList.remove('hidden');
-
-            // 사용자 메시지 추가
-            appendMessage('user', question);
-
-            // 현재 설정 로깅
-            console.log('메시지 전송 시 현재 설정:', {
-                persona: settings.persona,
-                style: settings.style
-            });
-
-            try {
-                const response = await fetch('/ask', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Private-Mode': isPrivateMode ? 'true' : 'false'
-                    },
-                    body: JSON.stringify({ 
-                        question: question,
-                        settings: {
-                            persona: settings.persona,
-                            style: settings.style
-                        }
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                console.log('서버 응답:', data);  // 응답 로깅 추가
-
-                if (data.status === 'success') {
-                    appendMessage('assistant', data.response, data.audio_url);
-                } else {
-                    appendMessage('error', data.message || '죄송합니다. 요청을 처리하는 중에 문제가 발생했습니다.');
-                }
-            } catch (error) {
-                console.error('메시지 전송 중 오류 발생:', error);
-                appendMessage('error', '메시지 전송 중 오류가 발생했습니다.');
-            } finally {
-                submitButton.disabled = false;
-                loadingIndicator.classList.add('hidden');
-            }
-        }
-    </script>
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/private-mode.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/speech.js') }}"></script>
 </body>
 </html> 

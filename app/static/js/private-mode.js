@@ -1,6 +1,14 @@
 class PrivateMode {
     constructor() {
-        console.log('PrivateMode: Initializing...');
+        // DOM이 완전히 로드된 후에 초기화
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.initialize());
+        } else {
+            this.initialize();
+        }
+    }
+
+    initialize() {
         this.isPrivate = false;
         this.privateModeBtn = document.getElementById('privateMode');
         this.body = document.body;
@@ -15,61 +23,74 @@ class PrivateMode {
         this.normalModeMessages = null;
         this.privateModeMessages = null;
 
+        // 일반 모드의 설정 저장
+        this.normalModeSettings = {
+            style: localStorage.getItem('ai_style') || 'normal',
+            persona: localStorage.getItem('ai_persona') || 'professional'
+        };
+
+        if (!this.privateModeBtn) {
+            console.error('Private mode button not found');
+            return;
+        }
+
         this.setupEventListeners();
-        this.loadState();
-        console.log('PrivateMode: Initialized with state:', this.isPrivate);
     }
 
     setupEventListeners() {
-        this.privateModeBtn.addEventListener('click', () => this.toggle());
+        this.privateModeBtn.addEventListener('click', () => {
+            this.togglePrivateMode();
+        });
         
         // 브라우저 닫을 때 비공개 모드 상태 및 데이터 초기화
         window.addEventListener('beforeunload', () => {
             if (this.isPrivate) {
-                sessionStorage.removeItem('privateMode');
-                sessionStorage.removeItem('privateModeMessages');
+                this.clearPrivateData();
             }
         });
     }
 
-    async toggle() {
-        console.log('PrivateMode: Toggling state from', this.isPrivate);
-        const wasPrivate = this.isPrivate;
-        this.isPrivate = !this.isPrivate;
-        
-        // 현재 모드의 대화 내용 저장
-        this.saveCurrentMessages();
-        
-        this.updateUI();
-        this.saveState();
+    clearPrivateData() {
+        sessionStorage.clear();  // 비공개 모드의 모든 데이터 삭제
+    }
 
-        // 모드가 실제로 변경되었을 때만 처리
-        if (wasPrivate !== this.isPrivate) {
-            console.log('PrivateMode: State changed to', this.isPrivate);
-            
-            if (this.isPrivate) {
-                // 비공개 모드로 전환
-                await this.switchToPrivateMode();
-            } else {
-                // 일반 모드로 전환
-                await this.switchToNormalMode();
+    togglePrivateMode() {
+        this.isPrivate = !this.isPrivate;
+        this.privateModeBtn.classList.toggle('active', this.isPrivate);
+        
+        // 비공개 모드 상태에 따라 UI 업데이트
+        document.body.classList.toggle('private-mode', this.isPrivate);
+        
+        // 채팅 내용 초기화
+        if (this.isPrivate) {
+            const chatContainer = document.getElementById('chatContainer');
+            if (chatContainer) {
+                chatContainer.innerHTML = '';
+                appendMessage('assistant', '비공개 모드가 시작되었습니다. 이 대화는 저장되지 않습니다.');
             }
         }
+
+        // 알림 표시
+        showNotification(
+            this.isPrivate ? '비공개 모드가 활성화되었습니다.' : '비공개 모드가 비활성화되었습니다.',
+            'info'
+        );
     }
 
     async switchToPrivateMode() {
-        // 현재 일반 모드 대화 내용 저장
+        // 현재 일반 모드 대화 내용과 설정 저장
         this.normalModeMessages = this.getCurrentMessages();
+        this.normalModeSettings = {
+            style: localStorage.getItem('ai_style') || 'normal',
+            persona: localStorage.getItem('ai_persona') || 'professional'
+        };
         
-        // 이전 비공개 모드 대화 내용 복원 또는 초기화
-        const savedPrivateMessages = sessionStorage.getItem('privateModeMessages');
-        if (savedPrivateMessages) {
-            this.setMessages(JSON.parse(savedPrivateMessages));
-        } else {
-            this.clearChat();
-            const message = '비공개 모드가 활성화되었습니다. 이 모드에서는:\n- 대화 내용이 서버에 저장되지 않습니다.\n- 브라우저를 닫으면 모든 데이터가 삭제됩니다.\n- 대화 내용 저장 및 내보내기가 비활성화됩니다.';
-            this.appendMessage('assistant', message);
-        }
+        // 비공개 모드 초기화
+        this.clearChat();
+        this.resetPrivateSettings();
+        
+        const message = '비공개 모드가 활성화되었습니다. 이 모드에서는:\n- 대화 내용이 서버에 저장되지 않습니다.\n- 브라우저를 닫으면 모든 데이터가 삭제됩니다.\n- 대화 내용 저장 및 내보내기가 비활성화됩니다.';
+        this.appendMessage('assistant', message);
 
         // 서버에 비공개 세션 시작 알림
         await fetch('/clear_context', {
@@ -78,21 +99,21 @@ class PrivateMode {
                 'X-Private-Mode': 'true'
             }
         });
-
-        // 설정 복원
-        window.settings.loadSettings();
     }
 
     async switchToNormalMode() {
-        // 현재 비공개 모드 대화 내용 저장
-        this.privateModeMessages = this.getCurrentMessages();
-        sessionStorage.setItem('privateModeMessages', JSON.stringify(this.privateModeMessages));
+        // 비공개 모드 데이터 삭제
+        this.clearPrivateData();
         
-        // 일반 모드 대화 내용 복원
+        // 일반 모드 대화 내용과 설정 복원
         if (this.normalModeMessages) {
             this.setMessages(this.normalModeMessages);
-        } else {
-            await this.loadNormalModeMessages();
+        }
+        
+        // 일반 모드 설정 복원
+        if (window.settings) {
+            window.settings.updateStyle(this.normalModeSettings.style, false);
+            window.settings.updatePersona(this.normalModeSettings.persona, false);
         }
         
         const message = '비공개 모드가 비활성화되었습니다. 일반 모드로 전환되었습니다.';
@@ -102,9 +123,18 @@ class PrivateMode {
         await fetch('/restore_session', {
             method: 'POST'
         });
+    }
 
-        // 설정 복원
-        window.settings.loadSettings();
+    resetPrivateSettings() {
+        // 비공개 모드의 기본 설정
+        sessionStorage.setItem('private_ai_style', 'normal');
+        sessionStorage.setItem('private_ai_persona', 'professional');
+        
+        // Settings 객체에 반영
+        if (window.settings) {
+            window.settings.updateStyle('normal', false);
+            window.settings.updatePersona('professional', false);
+        }
     }
 
     getCurrentMessages() {
@@ -126,23 +156,6 @@ class PrivateMode {
         }
     }
 
-    async loadNormalModeMessages() {
-        try {
-            const response = await fetch('/get_chat_history', {
-                headers: {
-                    'X-Private-Mode': 'false'
-                }
-            });
-            const data = await response.json();
-            if (data.status === 'success' && data.messages) {
-                this.clearChat();
-                data.messages.forEach(msg => this.appendMessage(msg.role, msg.content));
-            }
-        } catch (error) {
-            console.error('Failed to load normal mode messages:', error);
-        }
-    }
-
     updateUI() {
         console.log('PrivateMode: Updating UI for state:', this.isPrivate);
         // 비공개 모드 표시 업데이트
@@ -151,12 +164,14 @@ class PrivateMode {
 
         // 버튼 비활성화/활성화
         this.disableButtons.forEach(button => {
-            if (this.isPrivate) {
-                button.classList.add('disabled-in-private');
-                button.setAttribute('disabled', 'disabled');
-            } else {
-                button.classList.remove('disabled-in-private');
-                button.removeAttribute('disabled');
+            if (button) {
+                if (this.isPrivate) {
+                    button.classList.add('disabled-in-private');
+                    button.setAttribute('disabled', 'disabled');
+                } else {
+                    button.classList.remove('disabled-in-private');
+                    button.removeAttribute('disabled');
+                }
             }
         });
     }
@@ -176,14 +191,7 @@ class PrivateMode {
         if (savedState === 'true') {
             this.isPrivate = true;
             this.updateUI();
-            
-            // 저장된 비공개 모드 메시지 복원
-            const savedMessages = sessionStorage.getItem('privateModeMessages');
-            if (savedMessages) {
-                this.setMessages(JSON.parse(savedMessages));
-            } else {
-                this.clearChat();
-            }
+            this.resetPrivateSettings();
         }
     }
 
@@ -197,16 +205,17 @@ class PrivateMode {
 
     appendMessage(role, content) {
         console.log('PrivateMode: Appending message with role:', role);
-        window.appendMessage(role, content);
+        if (window.appendMessage) {
+            window.appendMessage(role, content);
+        }
     }
 
-    // 현재 비공개 모드 상태 반환
     isPrivateMode() {
         return this.isPrivate;
     }
 }
 
-// 전역 비공개 모드 인스턴스 생성
+// Initialize private mode instance
 window.privateMode = new PrivateMode();
 
 // 비공개 모드 관리 모듈
@@ -214,4 +223,7 @@ window.privateMode = {
     isPrivateMode() {
         return document.body.classList.contains('private-mode-on');
     }
-}; 
+};
+
+// 비공개 모드 초기화
+new PrivateMode(); 

@@ -1,97 +1,384 @@
-// 대화 초기화 기능
-document.getElementById('clearContext').addEventListener('click', async () => {
-    if (confirm('정말 대화 내용을 초기화하시겠습니까?')) {
-        try {
-            const response = await fetch('/clear_context', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Private-Mode': isPrivateMode ? 'true' : 'false'
-                }
-            });
-            
-            const data = await response.json();
-            if (data.status === 'success') {
-                // 대화 컨테이너 비우기
-                document.getElementById('chatContainer').innerHTML = '';
-                showNotification(data.message, 'success');
-            } else {
-                showNotification(data.message, 'error');
-            }
-        } catch (error) {
-            console.error('Error clearing context:', error);
-            showNotification('대화 내용 초기화 중 오류가 발생했습니다.', 'error');
+// 전역 상태
+let voiceState = {
+    isEnabled: false,
+    utterance: null
+};
+
+// AI 설정 상태
+const aiSettings = {
+    persona: 'professional', // professional, friendly, creative
+    responseLength: 'medium' // short, medium, long
+};
+
+// DOM이 로드된 후 초기화
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+// 앱 초기화
+function initializeApp() {
+    // 필수 DOM 요소 가져오기
+    const elements = {
+        form: document.getElementById('questionForm'),
+        userInput: document.getElementById('user-input'),
+        chatMessages: document.getElementById('chatMessages'),
+        loadingIndicator: document.getElementById('loadingIndicator'),
+        voiceInputBtn: document.getElementById('voiceInput'),
+        settingsBtn: document.getElementById('settingsToggle'),
+        settingsMenu: document.getElementById('settingsMenu'),
+        aiSettingsBtn: document.getElementById('aiSettings'),
+        aiSettingsMenu: document.getElementById('aiSettingsMenu')
+    };
+
+    // 필수 요소 존재 여부 확인
+    const requiredElements = ['form', 'userInput', 'chatMessages', 'loadingIndicator'];
+    const missingElements = requiredElements.filter(key => !elements[key]);
+    
+    if (missingElements.length > 0) {
+        console.error('Missing required DOM elements:', missingElements);
+        return;
+    }
+
+    // 폼 제출 이벤트
+    elements.form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleFormSubmit();
+    });
+
+    // 텍스트 영역 자동 크기 조절
+    elements.userInput.addEventListener('input', function() {
+        adjustTextareaHeight(this);
+    });
+
+    // 키 이벤트 리스너
+    elements.userInput.addEventListener('keypress', handleKeyPress);
+
+    // 다크 모드 토글
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+        // 시스템 다크 모드 감지
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+            updateThemeIcon(true);
         }
     }
-});
 
-// 음성 출력 기능
-let isVoiceOutputEnabled = false;
-
-document.getElementById('voiceOutput').addEventListener('click', function() {
-    isVoiceOutputEnabled = !isVoiceOutputEnabled;
-    this.classList.toggle('voice-output-active', isVoiceOutputEnabled);
-    
-    // 로컬 스토리지에 설정 저장
-    localStorage.setItem('voiceOutputEnabled', isVoiceOutputEnabled);
-    
-    // 알림 표시
-    showNotification(
-        isVoiceOutputEnabled ? '음성 출력이 활성화되었습니다.' : '음성 출력이 비활성화되었습니다.',
-        'success'
-    );
-});
-
-// 페이지 로드 시 음성 출력 설정 복원
-document.addEventListener('DOMContentLoaded', () => {
-    const savedVoiceOutput = localStorage.getItem('voiceOutputEnabled');
-    if (savedVoiceOutput === 'true') {
-        isVoiceOutputEnabled = true;
-        document.getElementById('voiceOutput').classList.add('voice-output-active');
+    // 음성 출력 버튼 이벤트 리스너
+    const voiceOutputBtn = document.getElementById('voiceOutput');
+    if (voiceOutputBtn) {
+        voiceOutputBtn.addEventListener('click', () => {
+            voiceState.isEnabled = !voiceState.isEnabled;
+            voiceOutputBtn.classList.toggle('active', voiceState.isEnabled);
+            showNotification(
+                voiceState.isEnabled ? '음성 출력이 활성화되었습니다.' : '음성 출력이 비활성화되었습니다.',
+                'info'
+            );
+        });
     }
-});
 
-// AI 응답에 대한 음성 출력 처리
-async function handleAIResponse(response) {
-    if (!isVoiceOutputEnabled || !response.text) return;
+    // AI 설정 메뉴 토글 (옵셔널)
+    if (elements.aiSettingsBtn && elements.aiSettingsMenu) {
+        elements.aiSettingsBtn.addEventListener('click', () => {
+            elements.aiSettingsMenu.classList.toggle('show');
+            if (elements.settingsMenu) {
+                elements.settingsMenu.classList.remove('show');
+            }
+        });
+    }
 
+    // 설정 메뉴 토글 (옵셔널)
+    if (elements.settingsBtn && elements.settingsMenu) {
+        elements.settingsBtn.addEventListener('click', () => {
+            elements.settingsMenu.classList.toggle('show');
+            if (elements.aiSettingsMenu) {
+                elements.aiSettingsMenu.classList.remove('show');
+            }
+        });
+    }
+
+    // 메뉴 외부 클릭 시 닫기 (옵셔널)
+    document.addEventListener('click', (event) => {
+        if (elements.settingsMenu && elements.aiSettingsMenu) {
+            const isClickInside = event.target.closest('#settingsToggle') || 
+                                event.target.closest('#settingsMenu') ||
+                                event.target.closest('#aiSettings') || 
+                                event.target.closest('#aiSettingsMenu');
+
+            if (!isClickInside) {
+                elements.settingsMenu.classList.remove('show');
+                elements.aiSettingsMenu.classList.remove('show');
+            }
+        }
+    });
+
+    // AI 설정 버튼 이벤트 리스너 (옵셔널)
+    document.querySelectorAll('[data-persona]').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const persona = e.target.closest('[data-persona]').dataset.persona;
+            aiSettings.persona = persona;
+            updateAISettingsUI();
+            // 설정 메뉴 닫기
+            if (elements.aiSettingsMenu) {
+                elements.aiSettingsMenu.classList.remove('show');
+            }
+        });
+    });
+
+    document.querySelectorAll('[data-length]').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const length = e.target.closest('[data-length]').dataset.length;
+            aiSettings.responseLength = length;
+            updateAISettingsUI();
+            // 설정 메뉴 닫기
+            if (elements.aiSettingsMenu) {
+                elements.aiSettingsMenu.classList.remove('show');
+            }
+        });
+    });
+
+    // 시작 메시지 표시
+    appendMessage('assistant', '안녕하세요! 무엇을 도와드릴까요?');
+}
+
+// 다크 모드 토글
+function toggleTheme() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    updateThemeIcon(isDark);
+}
+
+// 테마 아이콘 업데이트
+function updateThemeIcon(isDark) {
+    const icon = document.querySelector('.theme-toggle-icon');
+    if (icon) {
+        if (isDark) {
+            icon.classList.remove('fa-moon');
+            icon.classList.add('fa-sun');
+            icon.classList.add('sun');
+            icon.classList.remove('moon');
+        } else {
+            icon.classList.remove('fa-sun');
+            icon.classList.add('fa-moon');
+            icon.classList.remove('sun');
+            icon.classList.add('moon');
+        }
+    }
+}
+
+// 텍스트 영역 자동 크기 조절
+function adjustTextareaHeight(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = (textarea.scrollHeight) + 'px';
+}
+
+// 키 이벤트 처리
+function handleKeyPress(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        handleFormSubmit();
+    }
+}
+
+// AI 설정 UI 업데이트
+function updateAISettingsUI() {
+    document.querySelectorAll('[data-persona]').forEach(button => {
+        if (button.dataset.persona === aiSettings.persona) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
+
+    document.querySelectorAll('[data-length]').forEach(button => {
+        if (button.dataset.length === aiSettings.responseLength) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
+}
+
+// 폼 제출 처리
+async function handleFormSubmit() {
+    const userInput = document.getElementById('user-input');
+    const message = userInput.value.trim();
+    
+    if (!message) return;
+    
+    console.log('Submitting message:', message);
+    
+    // 사용자 메시지 표시
+    appendMessage('user', message);
+    
+    // 입력 필드 초기화 및 비활성화
+    userInput.value = '';
+    userInput.disabled = true;
+    userInput.style.height = 'auto';
+    
+    // 로딩 표시
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    if (loadingIndicator) {
+        loadingIndicator.classList.remove('hidden');
+    }
+    
     try {
-        const audioResponse = await fetch('/tts', {
+        const settings = {
+            persona: aiSettings.persona,
+            responseLength: aiSettings.responseLength
+        };
+        console.log('Using settings:', settings);
+
+        console.log('Sending request to server...');
+        const response = await fetch('/ask', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
-            body: JSON.stringify({ text: response.text })
+            body: JSON.stringify({ message, settings })
         });
+        console.log('Received response status:', response.status);
 
-        if (audioResponse.ok) {
-            const audioBlob = await audioResponse.blob();
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const audio = new Audio(audioUrl);
-            audio.play();
+        let data;
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
+        try {
+            data = JSON.parse(responseText);
+            console.log('Parsed response data:', data);
+        } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.error('Failed to parse response text:', responseText);
+            throw new Error('서버 응답을 파싱할 수 없습니다.');
         }
+
+        if (!response.ok || data.status === 'error') {
+            console.error('Server returned error:', data.error || response.statusText);
+            throw new Error(data.error || '서버 오류가 발생했습니다.');
+        }
+
+        if (!data || typeof data !== 'object') {
+            console.error('Invalid response format:', data);
+            throw new Error('서버로부터 유효하지 않은 응답 형식을 받았습니다.');
+        }
+
+        if (!data.response || typeof data.response !== 'string') {
+            console.error('Missing or invalid response message:', data);
+            throw new Error('서버 응답에 메시지가 없습니다.');
+        }
+
+        console.log('Adding AI response to chat');
+        // AI 응답 추가
+        appendMessage('assistant', data.response);
+
     } catch (error) {
-        console.error('Error playing audio:', error);
-        showNotification('음성 출력 중 오류가 발생했습니다.', 'error');
+        console.error('Request failed:', error);
+        appendMessage('error', `오류가 발생했습니다: ${error.message}`);
+    } finally {
+        // 입력 필드 활성화 및 로딩 표시 제거
+        userInput.disabled = false;
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
+        userInput.focus();
+    }
+}
+
+// 메시지 추가 함수
+function appendMessage(role, content) {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) {
+        console.error('Chat messages container not found');
+        return;
+    }
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}-message`;
+    
+    // 메시지 시간 포맷
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('ko-KR', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+    });
+    
+    // 메시지 내용과 시간을 포함하는 HTML 구성
+    messageDiv.innerHTML = `
+        <div class="message-content">${content}</div>
+        <div class="message-time">${timeString}</div>
+    `;
+    
+    // 메시지를 DOM에 추가
+    chatMessages.appendChild(messageDiv);
+
+    // 애니메이션이 완료된 후 스크롤
+    requestAnimationFrame(() => {
+        messageDiv.style.opacity = '1';
+        messageDiv.style.transform = 'translateY(0)';
+        scrollToBottom();
+    });
+}
+
+// 스크롤을 최하단으로 이동
+function scrollToBottom() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        const lastMessage = chatMessages.lastElementChild;
+        if (lastMessage) {
+            lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            // 추가 여백을 위해 컨테이너를 약간 더 스크롤
+            chatMessages.scrollTop += 20;
+        }
     }
 }
 
 // 알림 표시 함수
 function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed bottom-4 right-4 p-4 rounded-lg shadow-lg text-white ${
-        type === 'success' ? 'bg-green-500' :
-        type === 'error' ? 'bg-red-500' :
-        'bg-blue-500'
-    }`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
+    // 기존 알림 제거
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notification => notification.remove());
 
-    // 3초 후 알림 제거
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    // 스타일 추가
+    Object.assign(notification.style, {
+        position: 'fixed',
+        bottom: '20px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        padding: '12px 24px',
+        borderRadius: '8px',
+        backgroundColor: type === 'error' ? '#FF3B30' : 
+                       type === 'success' ? '#34C759' : '#007AFF',
+        color: 'white',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+        zIndex: '1000',
+        animation: 'fadeInUp 0.3s ease'
+    });
+    
+    document.body.appendChild(notification);
+    
     setTimeout(() => {
-        notification.remove();
+        notification.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
     }, 3000);
 }
 
-// 전역 변수로 isPrivateMode 선언
-let isPrivateMode = false; 
+// 음성 출력 함수
+function playTextToSpeech(text) {
+    if (!text) return;
+
+    // 이전 음성 출력 중지
+    if (voiceState.utterance) {
+        window.speechSynthesis.cancel();
+    }
+
+    voiceState.utterance = new SpeechSynthesisUtterance(text);
+    voiceState.utterance.lang = 'ko-KR';
+    window.speechSynthesis.speak(voiceState.utterance);
+}
+
+// 전역 함수로 등록
+window.appendMessage = appendMessage;
+window.showNotification = showNotification; 

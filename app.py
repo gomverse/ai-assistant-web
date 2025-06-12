@@ -551,243 +551,102 @@ def update_persona():
 
 @app.route("/tts", methods=["POST"])
 def text_to_speech():
-    """Convert text to speech using NaverTTS"""
     try:
-        data = request.json
-        text = data.get("text")
+        data = request.get_json()
+        text = data.get("text", "")
 
         if not text:
-            return jsonify({"status": "error", "message": "텍스트가 없습니다."}), 400
+            return jsonify({"error": "텍스트가 비어있습니다."}), 400
 
-        # 음성 파일 생성
-        audio_data = create_audio_response(text)
-        if not audio_data:
-            return (
-                jsonify({"status": "error", "message": "음성 변환에 실패했습니다."}),
-                500,
-            )
+        # 오디오 파일 생성
+        tts = gTTS(text=text, lang="ko")
+
+        # 메모리에 오디오 파일 저장
+        audio_buffer = io.BytesIO()
+        tts.write_to_fp(audio_buffer)
+        audio_buffer.seek(0)
 
         return send_file(
-            io.BytesIO(audio_data),
+            audio_buffer,
             mimetype="audio/mp3",
             as_attachment=True,
-            download_name="response.mp3",
+            download_name="speech.mp3",
         )
 
     except Exception as e:
-        logger.error(f"TTS error: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-def create_audio_response(text):
-    """Create audio response from text using NaverTTS"""
-    try:
-        # NaverTTS 설정
-        client_id = os.getenv("NAVER_CLIENT_ID")
-        client_secret = os.getenv("NAVER_CLIENT_SECRET")
-
-        if not client_id or not client_secret:
-            logger.error("Naver API credentials not found")
-            return None
-
-        # 텍스트가 비어있는 경우 처리
-        if not text or not text.strip():
-            logger.error("Empty text input")
-            return None
-
-        # 긴 텍스트를 여러 청크로 나누기
-        def split_text(text, max_length=1000):
-            # 문장 단위로 분리 (마침표, 느낌표, 물음표 기준)
-            sentences = []
-            current_sentence = ""
-
-            for char in text:
-                current_sentence += char
-                if char in [".", "!", "?"] and current_sentence.strip():
-                    sentences.append(current_sentence.strip())
-                    current_sentence = ""
-
-            if current_sentence.strip():  # 마지막 문장 처리
-                sentences.append(current_sentence.strip())
-
-            # 청크로 나누기
-            chunks = []
-            current_chunk = ""
-
-            for sentence in sentences:
-                if len(current_chunk) + len(sentence) > max_length:
-                    if current_chunk:
-                        chunks.append(current_chunk)
-                    current_chunk = sentence
-                else:
-                    current_chunk = (
-                        current_chunk + " " + sentence if current_chunk else sentence
-                    )
-
-            if current_chunk:
-                chunks.append(current_chunk)
-
-            return chunks
-
-        # 텍스트를 청크로 나누기
-        text_chunks = split_text(text)
-        audio_chunks = []
-
-        # 각 청크를 음성으로 변환
-        for chunk in text_chunks:
-            encText = urllib.parse.quote(chunk)
-            data = f"speaker=nara&volume=0&speed=0&pitch=0&format=mp3&text=" + encText
-
-            request = urllib.request.Request(
-                "https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts"
-            )
-            request.add_header("X-NCP-APIGW-API-KEY-ID", client_id)
-            request.add_header("X-NCP-APIGW-API-KEY", client_secret)
-            response = urllib.request.urlopen(request, data=data.encode("utf-8"))
-
-            if response.getcode() == 200:
-                audio_chunks.append(response.read())
-            else:
-                logger.error(f"Error from Naver TTS API: {response.getcode()}")
-                return None
-
-        # 모든 청크 합치기
-        return b"".join(audio_chunks)
-
-    except Exception as e:
-        logger.error(f"Error in create_audio_response: {str(e)}")
-        logger.error(traceback.format_exc())
-        return None
+        logger.error(f"TTS 처리 중 오류 발생: {str(e)}")
+        return jsonify({"error": "음성 변환 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/ask", methods=["POST"])
 def ask():
     try:
-        print("\n=== 새로운 요청 시작 ===")
-        data = request.json
-        question = data.get("question", "")
-        settings = data.get("settings", {})
+        data = request.get_json()
+        if not data or "message" not in data:
+            return jsonify({"status": "error", "message": "메시지가 없습니다."}), 400
+
+        user_message = data["message"]
         is_private = request.headers.get("X-Private-Mode") == "true"
 
-        print(f"사용자 입력: {question}")
-        print(f"비공개 모드: {is_private}")
-        print(f"클라이언트 설정: {settings}")
+        # 현재 세션 가져오기
+        chat_session = get_current_session()
 
-        if not api_key:
-            raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
+        # 시스템 메시지 설정
+        style_instruction = AI_STYLE_SETTINGS[chat_session.get_style()]["instruction"]
+        persona_instruction = AI_PERSONAS[chat_session.get_persona()]["instruction"]
+        system_message = f"{style_instruction}\n{persona_instruction}"
 
-        # Check for notification request
-        notification_seconds = parse_notification_time(question)
-        has_notification = False
+        # 사용자 메시지 추가
+        chat_session.add_message("user", user_message)
 
-        if notification_seconds:
-            has_notification = True
-            print(f"알림 요청 감지: {notification_seconds}초")
-
-        # Get current session and its settings
-        current_session = get_current_session()
-
-        # Use session settings first, then fall back to client settings if not available
-        current_style = current_session.get_style() or settings.get("style", "normal")
-        current_persona = current_session.get_persona() or settings.get(
-            "persona", "professional"
-        )
-
-        # Update session with the final settings
-        current_session.update_style(current_style)
-        current_session.update_persona(current_persona)
-
-        # Save settings to session for non-private mode
-        if not is_private:
-            current_session.save_settings_to_session()
-
-        print(
-            f"최종 적용될 설정 - 스타일: {current_style}, 페르소나: {current_persona}"
-        )
-        print(f"스타일 설정 상세: {AI_STYLE_SETTINGS[current_style]}")
-        print(f"페르소나 설정 상세: {AI_PERSONAS[current_persona]}")
-
-        # Create system prompt from style and persona settings
-        system_prompt = (
-            f"{AI_PERSONAS[current_persona]['instruction']}\n\n"
-            f"{AI_STYLE_SETTINGS[current_style]['instruction']}\n\n"
-            "위의 지시사항을 반드시 준수하여 답변하세요."
-        )
-        print(f"\n=== 시스템 프롬프트 ===\n{system_prompt}\n")
-
-        # Prepare messages for API call
-        messages = [{"role": "system", "content": system_prompt}]
-
-        # Get session messages
-        session_messages = current_session.get_context()
-        messages.extend(session_messages)
-        print(f"현재 세션의 메시지 수: {len(session_messages)}")
-
-        # Add current user input
-        messages.append({"role": "user", "content": question})
-
-        # Call OpenAI API
         try:
-            print("\n=== API 호출 시작 ===")
+            # OpenAI API 호출
+            messages = [{"role": "system", "content": system_message}]
+            messages.extend(
+                [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in chat_session.get_context()
+                ]
+            )
+
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
-                temperature=0.7,  # 적절한 창의성 추가
-                max_tokens=2048,  # 충분한 응답 길이 허용
+                temperature=0.7,
+                max_tokens=1000,
+                top_p=1.0,
+                frequency_penalty=0.0,
+                presence_penalty=0.0,
             )
-            print("API 호출 성공")
-        except Exception as api_error:
-            print(f"OpenAI API 오류: {str(api_error)}")
-            raise
 
-        # Extract the response
-        assistant_response = response.choices[0].message.content
-        print(f"\n=== AI 응답 ===\n{assistant_response}\n")
+            # AI 응답 처리
+            ai_message = response.choices[0].message.content.strip()
+            chat_session.add_message("assistant", ai_message)
 
-        # Generate audio response
-        print("\n=== 음성 변환 시작 ===")
-        audio_url = create_audio_response(assistant_response)
-        print(f"음성 변환 결과: {'성공' if audio_url else '실패'}")
+            # 비공개 모드가 아닐 때만 대화 내용 저장
+            if not is_private:
+                update_conversation_history("user", user_message)
+                update_conversation_history("assistant", ai_message)
 
-        # Update conversation history
-        print("\n=== 대화 히스토리 업데이트 ===")
-        current_session.add_message("user", question)
-        current_session.add_message("assistant", assistant_response)
+            return jsonify({"status": "success", "text": ai_message})
 
-        # Only save to permanent storage in non-private mode
-        if not is_private:
-            update_conversation_history("user", question)
-            update_conversation_history("assistant", assistant_response)
-
-        response_data = {
-            "status": "success",
-            "response": assistant_response,
-            "audio_url": audio_url,
-            "is_private": is_private,
-        }
-
-        if has_notification:
-            response_data["notification"] = {
-                "delay": notification_seconds,
-                "message": question,
-            }
-
-        print("\n=== 요청 처리 완료 ===")
-        return jsonify(response_data)
+        except Exception as e:
+            logger.error(f"OpenAI API 호출 중 오류: {str(e)}")
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "AI 응답 생성 중 오류가 발생했습니다.",
+                    }
+                ),
+                500,
+            )
 
     except Exception as e:
-        error_trace = traceback.format_exc()
-        print(f"\n=== 오류 발생 ===")
-        print(f"에러 타입: {type(e).__name__}")
-        print(f"에러 메시지: {str(e)}")
-        print(f"상세 오류 내용:\n{error_trace}")
+        logger.error(f"요청 처리 중 오류: {str(e)}")
         return (
             jsonify(
-                {
-                    "error": str(e),
-                    "status": "error",
-                    "message": f"서버 처리 중 오류가 발생했습니다: {str(e)}",
-                }
+                {"status": "error", "message": "요청 처리 중 오류가 발생했습니다."}
             ),
             500,
         )
