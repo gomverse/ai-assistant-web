@@ -124,10 +124,38 @@ function initializeApp() {
     });
 
     document.querySelectorAll('[data-length]').forEach(button => {
-        button.addEventListener('click', (e) => {
+        button.addEventListener('click', async (e) => {
             const length = e.target.closest('[data-length]').dataset.length;
             aiSettings.responseLength = length;
             updateAISettingsUI();
+
+            // 서버에 스타일 변경 요청
+            try {
+                const response = await fetch('/update_style', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ style: length })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.status === 'success' && data.show_in_chat) {
+                    // 채팅창에 메시지 표시
+                    appendMessage('assistant', data.message);
+                } else if (data.status === 'error') {
+                    showNotification(data.message || '응답 길이 설정 변경 중 오류가 발생했습니다.', 'error');
+                }
+            } catch (error) {
+                console.error('Style update error:', error);
+                showNotification('응답 길이 설정 변경 중 오류가 발생했습니다.', 'error');
+            }
+
             // 설정 메뉴 닫기
             if (elements.aiSettingsMenu) {
                 elements.aiSettingsMenu.classList.remove('show');
@@ -301,16 +329,18 @@ function appendMessage(role, content) {
         hour12: true 
     });
     
-    // 메시지 내용과 시간을 포함하는 HTML 구성
+    // 메시지 내용과 시간을 하나의 div로 통합
     messageDiv.innerHTML = `
-        <div class="message-content">${content}</div>
-        <div class="message-time">${timeString}</div>
+        <div class="message-content">
+            <span class="message-text">${content}</span>
+            <span class="message-time">${timeString}</span>
+        </div>
     `;
     
     // 메시지를 DOM에 추가
     chatMessages.appendChild(messageDiv);
 
-    // 애니메이션이 완료된 후 스크롤
+    // 애니메이션 적용
     requestAnimationFrame(() => {
         messageDiv.style.opacity = '1';
         messageDiv.style.transform = 'translateY(0)';
@@ -322,12 +352,10 @@ function appendMessage(role, content) {
 function scrollToBottom() {
     const chatMessages = document.getElementById('chatMessages');
     if (chatMessages) {
-        const lastMessage = chatMessages.lastElementChild;
-        if (lastMessage) {
-            lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            // 추가 여백을 위해 컨테이너를 약간 더 스크롤
-            chatMessages.scrollTop += 20;
-        }
+        chatMessages.scrollTo({
+            top: chatMessages.scrollHeight,
+            behavior: 'smooth'
+        });
     }
 }
 

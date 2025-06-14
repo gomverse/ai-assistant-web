@@ -62,21 +62,21 @@ pdfmetrics.registerFont(TTFont("NanumGothic", "app/static/fonts/NanumGothic.ttf"
 # AI 응답 길이 설정
 AI_STYLE_SETTINGS = {
     "concise": {
-        "name": "간결하게",
-        "description": "핵심 내용만 1~2문장으로 전달",
-        "instruction": "핵심 내용만 1~2문장으로 매우 간결하게 답변하세요. 절대로 2문장을 넘기지 마세요. 가능하면 1문장으로 답변하되, 꼭 필요한 경우에만 2문장을 사용하세요.",
+        "name": "짧게",
+        "description": "2문장 이하로 간결하고 핵심만 요약",
+        "instruction": "2문장 이하로 간결하게 핵심만 요약해서 답변하세요. 절대로 2문장을 넘기지 마세요. 가능하면 1문장으로 답변하되, 꼭 필요한 경우에만 2문장을 사용하세요.",
         "confirmation": "앞으로는 핵심 내용만 간단히 답변드리겠습니다.",
     },
     "normal": {
-        "name": "일반적으로",
-        "description": "균형잡힌 일반적인 길이 (4~6문장)",
-        "instruction": "필요한 내용을 4~6문장으로 설명하세요. 핵심 내용을 중심으로 균형있게 답변하되, 최소 4문장, 최대 6문장으로 설명하세요. 너무 짧거나 길지 않게 적절한 길이를 유지하세요.",
+        "name": "보통",
+        "description": "6문장 이하로 평범하고 일반적인 설명",
+        "instruction": "6문장 이하로 평범하고 일반적인 설명을 해주세요. 핵심 내용을 중심으로 균형있게 답변하되, 최소 3문장, 최대 6문장으로 설명하세요. 너무 짧거나 길지 않게 적절한 길이를 유지하세요.",
         "confirmation": "앞으로는 적절한 길이로 균형있게 답변드리겠습니다.",
     },
     "detailed": {
-        "name": "상세하게",
-        "description": "자세하고 풍부한 설명 (8문장 이상)",
-        "instruction": "모든 내용을 매우 상세하고 풍부하게 설명하세요. 관련 정보, 예시, 장단점 등을 포함하여 깊이 있게 답변하세요. 반드시 8문장 이상으로 설명하고, 필요한 경우 더 자세히 설명하세요. 내용을 체계적으로 구성하여 이해하기 쉽게 설명하세요.",
+        "name": "길게",
+        "description": "9문장 이상으로 상세하고 자세한 설명",
+        "instruction": "9문장 이상으로 상세하고 자세한 설명을 해주세요. 관련 정보, 예시, 장단점 등을 포함하여 깊이 있게 답변하세요. 반드시 9문장 이상으로 설명하고, 필요한 경우 더 자세히 설명하세요. 내용을 체계적으로 구성하여 이해하기 쉽게 설명하세요.",
         "confirmation": "앞으로는 모든 내용을 상세하게 설명드리겠습니다.",
     },
 }
@@ -485,23 +485,39 @@ def update_style():
         style = data.get("style", "normal")
 
         if style not in AI_STYLE_SETTINGS:
+            logger.warning(f"Invalid style setting requested: {style}")
             return jsonify({"status": "error", "message": "잘못된 스타일 설정입니다."})
 
         # Get current session and update style
         current_session = get_current_session()
+        old_style = current_session.get_style()
         current_session.update_style(style)
 
         # Save setting to session for non-private mode
         if request.headers.get("X-Private-Mode") != "true":
             current_session.save_settings_to_session()
 
+        # 로깅 추가
+        logger.info(
+            f"AI response style changed from '{AI_STYLE_SETTINGS[old_style]['name']}' to '{AI_STYLE_SETTINGS[style]['name']}'"
+        )
+        logger.debug(f"Style instruction: {AI_STYLE_SETTINGS[style]['instruction']}")
+
         # 응답 메시지 생성
         message = f"AI 응답 길이가 '{AI_STYLE_SETTINGS[style]['name']}'(으)로 변경되었습니다.\n{AI_STYLE_SETTINGS[style]['confirmation']}"
 
-        return jsonify({"status": "success", "message": message, "style": style})
+        return jsonify(
+            {
+                "status": "success",
+                "message": message,
+                "style": style,
+                "show_in_chat": True,  # 채팅창에 메시지 표시 여부
+            }
+        )
 
     except Exception as e:
         logger.error(f"Style update error: {str(e)}")
+        logger.error(traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)})
 
 
@@ -613,14 +629,28 @@ def ask():
                 model="gpt-3.5-turbo",
                 messages=messages,
                 temperature=0.7,
-                max_tokens=1000,
+                max_tokens=4000,  # 토큰 수 증가
                 top_p=1.0,
                 frequency_penalty=0.0,
                 presence_penalty=0.0,
+                stream=False,  # 스트리밍 비활성화
             )
 
             # AI 응답 처리
             ai_message = response.choices[0].message.content.strip()
+
+            # 응답이 비어있는지 확인
+            if not ai_message:
+                logger.error("Empty response from OpenAI API")
+                return (
+                    jsonify({"status": "error", "message": "AI 응답이 비어있습니다."}),
+                    500,
+                )
+
+            # 응답 길이 로깅
+            logger.debug(f"Response length: {len(ai_message)}")
+            logger.debug(f"Response preview: {ai_message[:100]}...")
+
             chat_session.add_message("assistant", ai_message)
 
             # 비공개 모드가 아닐 때만 대화 내용 저장
@@ -631,7 +661,8 @@ def ask():
             return jsonify({"status": "success", "text": ai_message})
 
         except Exception as e:
-            logger.error(f"OpenAI API 호출 중 오류: {str(e)}")
+            logger.error(f"OpenAI API Error: {str(e)}")
+            logger.error(traceback.format_exc())
             return (
                 jsonify(
                     {
@@ -643,13 +674,9 @@ def ask():
             )
 
     except Exception as e:
-        logger.error(f"요청 처리 중 오류: {str(e)}")
-        return (
-            jsonify(
-                {"status": "error", "message": "요청 처리 중 오류가 발생했습니다."}
-            ),
-            500,
-        )
+        logger.error(f"General Error: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"status": "error", "message": "서버 오류가 발생했습니다."}), 500
 
 
 @app.route("/export_conversation", methods=["POST"])
