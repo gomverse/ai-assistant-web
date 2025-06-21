@@ -28,6 +28,10 @@ wheels/
 venv/
 ENV/
 
+# 대화 데이터 폴더
+data/
+
+
 # VSCode 설정파일 (사용 시)
 .vscode/
 .idea/
