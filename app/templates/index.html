@@ -3,349 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>나만의 스마트 AI 비서</title>
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- Custom CSS -->
+    <title>AI 개인비서</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <style>
-        :root {
-            --imessage-blue: #007AFF;
-            --imessage-gray: #E9E9EB;
-            --background-light: #F5F5F7;
-            --background-dark: #1C1C1E;
-            --bubble-blue: #0B93F6;
-            --bubble-gray: #E9E9EB;
-        }
-
-        .dark {
-            --background-light: #1C1C1E;
-            --bubble-gray: #2C2C2E;
-        }
-
-        /* 전체 레이아웃 */
-        body {
-            height: 100vh;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            background-color: var(--background-light);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        /* 헤더 스타일 */
-        .header {
-            background-color: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-            padding: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            height: 44px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .dark .header {
-            background-color: rgba(28, 28, 30, 0.8);
-            border-bottom-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .header-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: var(--imessage-blue);
-        }
-
-        .header-controls {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        /* 설정 메뉴 */
-        .settings-menu {
-            display: none;
-            position: absolute;
-            top: 60px;
-            right: 1rem;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 0.5rem 0;
-            min-width: 200px;
-        }
-
-        .dark .settings-menu {
-            background: #2C2C2E;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-        }
-
-        .settings-menu.show {
-            display: block;
-        }
-
-        .settings-item {
-            padding: 0.8rem 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .settings-item:hover {
-            background-color: rgba(0, 0, 0, 0.05);
-        }
-
-        .dark .settings-item:hover {
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-
-        /* 메인 컨테이너 */
-        .main-container {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            padding: 1rem;
-            overflow: hidden;
-        }
-
-        /* 채팅 컨테이너 */
-        .chat-wrapper {
-            width: 100%;
-            max-width: 800px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .dark .chat-wrapper {
-            background: var(--background-dark);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        #chatContainer {
-            flex: 1;
-            padding: 1rem;
-            overflow-y: auto;
-            margin-bottom: 70px;
-            scroll-behavior: smooth;
-        }
-
-        /* 메시지 스타일 */
-        .message {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 1rem;
-            max-width: 70%;
-            animation: fadeIn 0.3s ease;
-            position: relative;
-        }
-
-        .user-message {
-            align-self: flex-end;
-        }
-
-        .assistant-message {
-            align-self: flex-start;
-        }
-
-        .message-content {
-            padding: 0.8rem 1rem;
-            border-radius: 20px;
-            font-size: 1rem;
-            line-height: 1.4;
-            position: relative;
-        }
-
-        .user-message .message-content {
-            background-color: var(--imessage-blue);
-            color: white;
-            margin-left: 40px;
-            border-bottom-right-radius: 5px;
-        }
-
-        .assistant-message .message-content {
-            background-color: var(--bubble-gray);
-            color: black;
-            margin-right: 40px;
-            border-bottom-left-radius: 5px;
-        }
-
-        .dark .assistant-message .message-content {
-            color: white;
-        }
-
-        .message-time {
-            font-size: 0.75rem;
-            color: #8E8E93;
-            margin: 0.2rem 0.5rem;
-            opacity: 0.7;
-        }
-
-        /* 입력 폼 스타일 */
-        .input-container {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(0, 0, 0, 0.1);
-            padding: 0.8rem 1rem;
-            display: flex;
-            align-items: flex-end;
-            gap: 0.8rem;
-        }
-
-        .dark .input-container {
-            background-color: rgba(28, 28, 30, 0.8);
-            border-top-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .input-wrapper {
-            position: relative;
-            flex: 1;
-            display: flex;
-            align-items: flex-end;
-            gap: 0.8rem;
-            min-height: 44px;
-        }
-
-        #user-input {
-            flex: 1;
-            min-height: 44px;
-            max-height: 120px;
-            border: none;
-            background-color: var(--bubble-gray);
-            border-radius: 20px;
-            padding: 12px 16px;
-            resize: none;
-            line-height: 1.4;
-            font-size: 1rem;
-            font-family: inherit;
-            transition: all 0.2s ease;
-        }
-
-        .dark #user-input {
-            background-color: #2C2C2E;
-            color: white;
-        }
-
-        #user-input:focus {
-            outline: none;
-            background-color: white;
-            box-shadow: 0 0 0 1px var(--imessage-blue);
-        }
-
-        .dark #user-input:focus {
-            background-color: #3A3A3C;
-        }
-
-        /* 버튼 스타일 */
-        .circle-button {
-            width: 44px;
-            height: 44px;
-            border: none;
-            border-radius: 50%;
-            background: transparent;
-            color: var(--imessage-blue);
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-            padding: 0;
-        }
-
-        .circle-button:hover {
-            background-color: rgba(0, 122, 255, 0.1);
-        }
-
-        .circle-button:disabled {
-            color: #8E8E93;
-            cursor: not-allowed;
-        }
-
-        .circle-button.active {
-            background-color: var(--imessage-blue);
-            color: white;
-        }
-
-        /* 로딩 인디케이터 */
-        .typing-indicator {
-            display: flex;
-            gap: 0.3rem;
-            padding: 0.8rem 1rem;
-            background: var(--bubble-gray);
-            border-radius: 20px;
-            width: fit-content;
-            margin: 0.5rem 0;
-            border-bottom-left-radius: 5px;
-        }
-
-        .dark .typing-indicator {
-            background: #2C2C2E;
-        }
-
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            background: #8E8E93;
-            border-radius: 50%;
-            animation: typingAnimation 1.4s infinite;
-        }
-
-        /* 애니메이션 */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes typingAnimation {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-4px); }
-        }
-
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-        /* 다크 모드 토글 애니메이션 */
-        @keyframes moonToSun {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        @keyframes sunToMoon {
-            from { transform: rotate(360deg); }
-            to { transform: rotate(0deg); }
-        }
-
-        .theme-toggle-icon {
-            transition: transform 0.5s ease;
-        }
-
-        .theme-toggle-icon.sun {
-            animation: moonToSun 0.5s ease;
-        }
-
-        .theme-toggle-icon.moon {
-            animation: sunToMoon 0.5s ease;
-        }
-    </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200" id="body">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
@@ -387,18 +56,6 @@
                     <span>대화 내보내기</span>
                 </button>
 
-                <button id="privateMode" 
-                        class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-800 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-user-secret"></i>
-                    <span>비공개 모드</span>
-                </button>
-
-                <button id="voiceInput" 
-                        class="px-3 py-1 text-sm bg-yellow-500 hover:bg-yellow-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-microphone"></i>
-                    <span>음성 입력</span>
-                </button>
-
                 <!-- Search input -->
                 <div class="relative">
                     <input type="text" 
@@ -415,10 +72,24 @@
 
         <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-200">
             <div class="chat-container mb-6 p-6 h-[500px] overflow-y-auto" id="chatContainer">
-                <!-- 채팅 메시지 영역 -->
+                <!-- 시작 메시지 -->
+                <div class="message assistant mb-4 p-4 rounded-lg bg-gray-100 dark:bg-gray-700 mr-12">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0 mr-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                                <i class="fas fa-robot text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-medium mb-1 text-gray-800 dark:text-gray-200">AI 비서</div>
+                            <div class="text-gray-700 dark:text-gray-300">
+                                안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?<br>
+                                예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <!-- main.js가 요구하는 chatMessages ID 추가 -->
-            <div id="chatMessages" style="display:none;"></div>
 
             <div class="p-4 border-t border-gray-200 dark:border-gray-700">
                 <form id="questionForm" class="flex gap-2">
@@ -571,11 +242,6 @@
         </div>
     </div>
 
-    <!-- JavaScript -->
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/private-mode.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/speech.js') }}"></script>
     <script>
         // 다크모드 토글
         const themeToggle = document.getElementById('themeToggle');
@@ -652,6 +318,460 @@
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
+
+        // 오디오 재생 관련 변수들
+        let currentAudio = null;
+        let currentButton = null;
+        
+        function toggleAudio(button, url) {
+            // 이전에 재생 중인 다른 오디오가 있다면 중지
+            if (currentAudio && currentButton && (currentButton !== button)) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                resetButton(currentButton);
+            }
+
+            // 같은 버튼을 눌렀을 때의 처리
+            if (currentButton === button && currentAudio) {
+                if (!currentAudio.paused) {
+                    // 재생 중지
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                    resetButton(button);
+                    currentAudio = null;
+                    currentButton = null;
+                } else {
+                    // 재생 시작
+                    currentAudio.play();
+                    updateButton(button, true);
+                }
+                return;
+            }
+
+            // 새로운 오디오 재생
+            if (!currentAudio || currentButton !== button) {
+                currentAudio = new Audio(url);
+                currentButton = button;
+                
+                currentAudio.play();
+                updateButton(button, true);
+                
+                // 재생이 끝나면 버튼 상태 초기화
+                currentAudio.onended = () => {
+                    resetButton(button);
+                    currentAudio = null;
+                    currentButton = null;
+                };
+            }
+        }
+        
+        function updateButton(button, isPlaying) {
+            const icon = button.querySelector('i');
+            const text = button.querySelector('.audio-text');
+            
+            if (isPlaying) {
+                icon.classList.remove('fa-play');
+                icon.classList.add('fa-stop');
+                text.textContent = '음성 중지';
+                button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                button.classList.add('bg-red-500', 'hover:bg-red-600');
+            } else {
+                resetButton(button);
+            }
+        }
+        
+        function resetButton(button) {
+            const icon = button.querySelector('i');
+            const text = button.querySelector('.audio-text');
+            
+            icon.classList.remove('fa-stop');
+            icon.classList.add('fa-play');
+            text.textContent = '음성으로 듣기';
+            button.classList.remove('bg-red-500', 'hover:bg-red-600');
+            button.classList.add('bg-blue-500', 'hover:bg-blue-600');
+        }
+
+        // 알림 권한 요청
+        async function requestNotificationPermission() {
+            if (!("Notification" in window)) {
+                console.log("이 브라우저는 알림을 지원하지 않습니다.");
+                return false;
+            }
+            
+            try {
+                const permission = await Notification.requestPermission();
+                return permission === "granted";
+            } catch (error) {
+                console.error("알림 권한 요청 중 오류 발생:", error);
+                return false;
+            }
+        }
+
+        // 알림 표시
+        function showNotification(message) {
+            if (!("Notification" in window)) {
+                alert(message);
+                return;
+            }
+            
+            if (Notification.permission === "granted") {
+                new Notification("AI 비서 알림", {
+                    body: message,
+                    icon: "/static/images/robot-icon.png"  // 알림 아이콘 (추가 필요)
+                });
+            } else {
+                alert(message);
+            }
+        }
+
+        // 알림 스케줄링
+        function scheduleNotification(delay, message) {
+            setTimeout(() => {
+                showNotification(message);
+            }, delay * 1000);  // delay는 초 단위
+        }
+
+        // 페이지 로드 시 알림 권한 요청
+        window.addEventListener('load', async () => {
+            await requestNotificationPermission();
+        });
+
+        document.getElementById('questionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const userInput = document.getElementById('userInput');
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const question = userInput.value;
+
+            // 입력창 비우기 및 버튼 비활성화
+            userInput.value = '';
+            submitButton.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+
+            // 사용자 메시지 추가
+            appendMessage('user', question);
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question: question }),
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    appendMessage('assistant', data.response, data.audio_url);
+                    
+                    // 알림 처리
+                    if (data.notification) {
+                        scheduleNotification(data.notification.delay, data.notification.message);
+                        appendMessage('assistant', `네, ${data.notification.delay}초 뒤에 알려드리겠습니다.`);
+                    }
+                } else {
+                    appendMessage('error', data.message || '죄송합니다. 요청을 처리하는 중에 문제가 발생했습니다.');
+                }
+            } catch (error) {
+                appendMessage('error', '서버와의 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+            } finally {
+                // 버튼 활성화 및 로딩 표시 제거
+                submitButton.disabled = false;
+                loadingIndicator.classList.add('hidden');
+                userInput.focus();
+            }
+        });
+
+        // 대화 초기화 기능
+        document.getElementById('clearContext').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/clear_context', {
+                    method: 'POST',
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // 채팅 컨테이너 비우기
+                    const chatContainer = document.getElementById('chatContainer');
+                    chatContainer.innerHTML = '';
+                    
+                    // 시작 메시지 다시 추가
+                    appendMessage('assistant', '안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?\n예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"');
+                }
+            } catch (error) {
+                console.error('대화 초기화 중 오류 발생:', error);
+            }
+        });
+
+        // 대화 내보내기 기능
+        const exportModal = document.getElementById('exportModal');
+        const closeExportModal = document.getElementById('closeExportModal');
+        
+        document.getElementById('exportChat').addEventListener('click', () => {
+            exportModal.classList.remove('hidden');
+        });
+        
+        closeExportModal.addEventListener('click', () => {
+            exportModal.classList.add('hidden');
+        });
+        
+        exportModal.addEventListener('click', (e) => {
+            if (e.target === exportModal) {
+                exportModal.classList.add('hidden');
+            }
+        });
+
+        async function exportConversation(format) {
+            try {
+                const response = await fetch('/export_conversation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ format: format })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = response.headers.get('content-disposition').split('filename=')[1];
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    exportModal.classList.add('hidden');
+                } else {
+                    const data = await response.json();
+                    alert(data.message || '대화 내보내기에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('대화 내보내기 중 오류 발생:', error);
+                alert('대화 내보내기 중 오류가 발생했습니다.');
+            }
+        }
+
+        document.getElementById('exportTXT').addEventListener('click', () => exportConversation('txt'));
+        document.getElementById('exportPDF').addEventListener('click', () => exportConversation('pdf'));
+
+        // 검색 기능
+        const searchModal = document.getElementById('searchModal');
+        const searchResults = document.getElementById('searchResults');
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const closeSearchModal = document.getElementById('closeSearchModal');
+
+        async function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+
+            try {
+                const response = await fetch('/search_conversation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    searchResults.innerHTML = '';
+                    if (data.count === 0) {
+                        searchResults.innerHTML = '<p class="text-gray-500 dark:text-gray-400">검색 결과가 없습니다.</p>';
+                    } else {
+                        data.results.forEach(result => {
+                            const resultDiv = document.createElement('div');
+                            resultDiv.className = 'p-4 bg-gray-50 dark:bg-gray-700 rounded-lg';
+                            
+                            let html = '';
+                            if (result.before) {
+                                html += `<div class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                    [${result.before.role === 'user' ? '사용자' : 'AI 비서'}] ${result.before.content}
+                                </div>`;
+                            }
+                            
+                            html += `<div class="font-medium text-gray-800 dark:text-white bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded">
+                                [${result.match.role === 'user' ? '사용자' : 'AI 비서'}] ${result.match.content}
+                            </div>`;
+                            
+                            if (result.after) {
+                                html += `<div class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                    [${result.after.role === 'user' ? '사용자' : 'AI 비서'}] ${result.after.content}
+                                </div>`;
+                            }
+                            
+                            resultDiv.innerHTML = html;
+                            searchResults.appendChild(resultDiv);
+                        });
+                    }
+                    searchModal.classList.remove('hidden');
+                } else {
+                    alert(data.message || '검색 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('검색 중 오류 발생:', error);
+                alert('검색 중 오류가 발생했습니다.');
+            }
+        }
+
+        searchButton.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        closeSearchModal.addEventListener('click', () => {
+            searchModal.classList.add('hidden');
+        });
+
+        searchModal.addEventListener('click', (e) => {
+            if (e.target === searchModal) {
+                searchModal.classList.add('hidden');
+            }
+        });
+
+        // AI 스타일 설정 모달 관련
+        const styleSettingsModal = document.getElementById('styleSettingsModal');
+        const styleSettingsBtn = document.getElementById('styleSettingsBtn');
+        const closeStyleSettings = document.getElementById('closeStyleSettings');
+
+        styleSettingsBtn.addEventListener('click', () => {
+            styleSettingsModal.classList.remove('hidden');
+        });
+
+        closeStyleSettings.addEventListener('click', () => {
+            styleSettingsModal.classList.add('hidden');
+        });
+
+        styleSettingsModal.addEventListener('click', (e) => {
+            if (e.target === styleSettingsModal) {
+                styleSettingsModal.classList.add('hidden');
+            }
+        });
+
+        async function updateStyle(style) {
+            try {
+                const response = await fetch('/update_ai_style', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ response_length: style })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    appendMessage('assistant', data.message);
+                    styleSettingsModal.classList.add('hidden');
+                    
+                    // 현재 선택된 스타일 저장
+                    localStorage.setItem('responseLength', style);
+                    
+                    // 버튼 스타일 업데이트
+                    updateStyleButtonStyles(style);
+                } else {
+                    appendMessage('error', data.message || 'AI 응답 길이 설정 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('AI 응답 길이 설정 중 오류 발생:', error);
+                appendMessage('error', 'AI 응답 길이 설정 중 오류가 발생했습니다.');
+            }
+        }
+
+        function updateStyleButtonStyles(selectedStyle) {
+            document.querySelectorAll('.style-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-white');
+            });
+            
+            const selectedBtn = document.getElementById(`${selectedStyle}Style`);
+            if (selectedBtn) {
+                selectedBtn.classList.add('ring-2', 'ring-white');
+            }
+        }
+
+        // 응답 길이 버튼에 이벤트 리스너 추가
+        document.getElementById('conciseStyle').addEventListener('click', () => updateStyle('concise'));
+        document.getElementById('normalStyle').addEventListener('click', () => updateStyle('normal'));
+        document.getElementById('detailedStyle').addEventListener('click', () => updateStyle('detailed'));
+
+        // 저장된 응답 길이 설정 로드
+        const savedStyle = localStorage.getItem('responseLength') || 'normal';
+        updateStyleButtonStyles(savedStyle);
+
+        // AI 페르소나 설정 관련
+        const personaModal = document.getElementById('personaModal');
+        const personaSettingsBtn = document.getElementById('personaSettingsBtn');
+        const closePersonaModal = document.getElementById('closePersonaModal');
+        
+        personaSettingsBtn.addEventListener('click', () => {
+            personaModal.classList.remove('hidden');
+        });
+        
+        closePersonaModal.addEventListener('click', () => {
+            personaModal.classList.add('hidden');
+        });
+        
+        personaModal.addEventListener('click', (e) => {
+            if (e.target === personaModal) {
+                personaModal.classList.add('hidden');
+            }
+        });
+
+        // 페르소나 버튼 이벤트 리스너
+        async function updatePersona(persona) {
+            try {
+                const response = await fetch('/update_persona', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ persona: persona })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    appendMessage('assistant', data.message);
+                    personaModal.classList.add('hidden');
+                    
+                    // 현재 선택된 페르소나 저장
+                    localStorage.setItem('selectedPersona', persona);
+                    
+                    // 버튼 스타일 업데이트
+                    updatePersonaButtonStyles(persona);
+                } else {
+                    appendMessage('error', data.message || 'AI 성격 설정 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('AI 성격 설정 중 오류 발생:', error);
+                appendMessage('error', 'AI 성격 설정 중 오류가 발생했습니다.');
+            }
+        }
+
+        function updatePersonaButtonStyles(selectedPersona) {
+            document.querySelectorAll('.persona-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-white');
+            });
+            
+            const selectedBtn = document.getElementById(`${selectedPersona}Persona`);
+            if (selectedBtn) {
+                selectedBtn.classList.add('ring-2', 'ring-white');
+            }
+        }
+
+        // 페르소나 버튼에 이벤트 리스너 추가
+        document.getElementById('friendlyPersona').addEventListener('click', () => updatePersona('friendly'));
+        document.getElementById('professionalPersona').addEventListener('click', () => updatePersona('professional'));
+        document.getElementById('cynicalPersona').addEventListener('click', () => updatePersona('cynical'));
+
+        // 저장된 페르소나 설정 로드
+        const savedPersona = localStorage.getItem('selectedPersona') || 'professional';
+        updatePersonaButtonStyles(savedPersona);
     </script>
 </body>
 </html>
