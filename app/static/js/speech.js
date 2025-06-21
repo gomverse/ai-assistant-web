@@ -124,6 +124,4 @@ class SpeechRecognitionHandler {
 }
 
 // 음성 인식 초기화
-(function() {
-    window.speechHandler = new SpeechRecognitionHandler();
-})();
+new SpeechRecognitionHandler(); 

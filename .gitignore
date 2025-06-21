@@ -38,9 +38,6 @@ ENV/
 # 기타 임시 파일
 *.log
 
-# cursorrule 관련 파일
-.cursorrule
-
 # Project specific
 data/logs/*.json
 

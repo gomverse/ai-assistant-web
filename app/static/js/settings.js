@@ -9,11 +9,10 @@ class Settings {
     }
 
     initialize() {
-        // 실제 HTML에 존재하는 id만 참조
         this.settingsToggle = document.getElementById('settingsToggle');
         this.settingsMenu = document.getElementById('settingsMenu');
-        this.clearChatBtn = document.getElementById('clearChat'); // index.html 422
-        this.exportChatBtn = document.getElementById('exportChat'); // index.html 426
+        this.clearChatBtn = document.getElementById('clearChat');
+        this.exportChatBtn = document.getElementById('exportChat');
         
         if (!this.settingsToggle || !this.settingsMenu) {
             console.error('Settings: Required DOM elements not found');
@@ -113,6 +112,4 @@ class Settings {
 }
 
 // 설정 초기화
-(function() {
-    window.settings = new Settings();
-})();
+new Settings(); 

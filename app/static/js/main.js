@@ -228,22 +228,32 @@ function updateAISettingsUI() {
 async function handleFormSubmit() {
     const userInput = document.getElementById('user-input');
     const message = userInput.value.trim();
+    
     if (!message) return;
+    
     console.log('Submitting message:', message);
+    
+    // 사용자 메시지 표시
     appendMessage('user', message);
+    
+    // 입력 필드 초기화 및 비활성화
     userInput.value = '';
     userInput.disabled = true;
     userInput.style.height = 'auto';
+    
+    // 로딩 표시
     const loadingIndicator = document.getElementById('loadingIndicator');
     if (loadingIndicator) {
         loadingIndicator.classList.remove('hidden');
     }
+    
     try {
         const settings = {
             persona: aiSettings.persona,
             responseLength: aiSettings.responseLength
         };
         console.log('Using settings:', settings);
+
         console.log('Sending request to server...');
         const response = await fetch('/ask', {
             method: 'POST',
@@ -254,64 +264,50 @@ async function handleFormSubmit() {
             body: JSON.stringify({ message, settings })
         });
         console.log('Received response status:', response.status);
+
         let data;
         const responseText = await response.text();
         console.log('Raw response:', responseText);
+        
         try {
             data = JSON.parse(responseText);
             console.log('Parsed response data:', data);
         } catch (parseError) {
             console.error('JSON parse error:', parseError);
             console.error('Failed to parse response text:', responseText);
-            showNotification('서버 응답을 파싱할 수 없습니다. 잠시 후 다시 시도해 주세요.', 'error');
             throw new Error('서버 응답을 파싱할 수 없습니다.');
         }
+
         if (!response.ok || data.status === 'error') {
             console.error('Server returned error:', data.error || response.statusText);
-            showNotification(data.error || '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.', 'error');
             throw new Error(data.error || '서버 오류가 발생했습니다.');
         }
+
         if (!data || typeof data !== 'object') {
             console.error('Invalid response format:', data);
-            showNotification('서버로부터 유효하지 않은 응답 형식을 받았습니다.', 'error');
             throw new Error('서버로부터 유효하지 않은 응답 형식을 받았습니다.');
         }
+
         if (!data.response || typeof data.response !== 'string') {
             console.error('Missing or invalid response message:', data);
-            showNotification('서버 응답에 메시지가 없습니다.', 'error');
             throw new Error('서버 응답에 메시지가 없습니다.');
         }
+
         console.log('Adding AI response to chat');
+        // AI 응답 추가
         appendMessage('assistant', data.response);
+
     } catch (error) {
         console.error('Request failed:', error);
         appendMessage('error', `오류가 발생했습니다: ${error.message}`);
-        // 네트워크 오류 등도 사용자에게 안내
-        if (error.name === 'TypeError') {
-            showNotification('네트워크 오류가 발생했습니다. 인터넷 연결을 확인해 주세요.', 'error');
-        } else {
-            showNotification(error.message || '알 수 없는 오류가 발생했습니다.', 'error');
-        }
     } finally {
+        // 입력 필드 활성화 및 로딩 표시 제거
         userInput.disabled = false;
         if (loadingIndicator) {
             loadingIndicator.classList.add('hidden');
         }
         userInput.focus();
     }
-}
-
-// 메시지 엘리먼트 생성 함수 (HTML/JS 분리)
-function createMessageElement(role, content, timeString) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${role}-message`;
-    messageDiv.innerHTML = `
-        <div class="message-content">
-            <span class="message-text">${content}</span>
-            <span class="message-time">${timeString}</span>
-        </div>
-    `;
-    return messageDiv;
 }
 
 // 메시지 추가 함수
@@ -322,6 +318,9 @@ function appendMessage(role, content) {
         return;
     }
 
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}-message`;
+    
     // 메시지 시간 포맷
     const now = new Date();
     const timeString = now.toLocaleTimeString('ko-KR', { 
@@ -330,8 +329,15 @@ function appendMessage(role, content) {
         hour12: true 
     });
     
-    // 메시지 엘리먼트 생성 및 추가
-    const messageDiv = createMessageElement(role, content, timeString);
+    // 메시지 내용과 시간을 하나의 div로 통합
+    messageDiv.innerHTML = `
+        <div class="message-content">
+            <span class="message-text">${content}</span>
+            <span class="message-time">${timeString}</span>
+        </div>
+    `;
+    
+    // 메시지를 DOM에 추가
     chatMessages.appendChild(messageDiv);
 
     // 애니메이션 적용
@@ -403,4 +409,4 @@ function playTextToSpeech(text) {
 
 // 전역 함수로 등록
 window.appendMessage = appendMessage;
-window.showNotification = showNotification;
+window.showNotification = showNotification; 

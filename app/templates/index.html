@@ -8,239 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200" id="body">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
-        <header class="text-center mb-8">
-            <!-- 제목과 다크모드 설정 -->
-            <div class="flex justify-center items-center mb-2">
-                <h1 class="text-3xl font-bold text-gray-800 dark:text-white transition-colors duration-200">AI 개인비서</h1>
-                <button id="themeToggle" class="ml-4 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                    <i class="fas fa-moon text-gray-600 dark:text-gray-300" id="themeIcon"></i>
-                </button>
-            </div>
-            
-            <!-- 소제목 -->
-            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-200 mb-6 font-bold">당신의 일상을 더 스마트하게</p>
-            
-            <!-- 기능 버튼들 -->
-            <div class="flex justify-center items-center gap-4 flex-wrap">
-                <button id="personaSettingsBtn" 
-                        class="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-user-circle"></i>
-                    <span>AI 성격 설정</span>
-                </button>
-
-                <button id="clearContext" 
-                        class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-trash"></i>
-                    <span>대화 초기화</span>
-                </button>
-                
-                <button id="styleSettingsBtn" 
-                        class="px-3 py-1 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-sliders"></i>
-                    <span>응답 길이 설정</span>
-                </button>
-
-                <button id="exportChat" 
-                        class="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                    <i class="fas fa-download"></i>
-                    <span>대화 내보내기</span>
-                </button>
-
-                <!-- Search input -->
-                <div class="relative">
-                    <input type="text" 
-                           id="searchInput" 
-                           placeholder="대화 내용 검색..."
-                           class="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full w-40 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <button id="searchButton"
-                            class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
-                        <i class="fas fa-search text-sm"></i>
-                    </button>
-                </div>
-            </div>
-        </header>
-
-        <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-200">
-            <div class="chat-container mb-6 p-6 h-[500px] overflow-y-auto" id="chatContainer">
-                <!-- 시작 메시지 -->
-                <div class="message assistant mb-4 p-4 rounded-lg bg-gray-100 dark:bg-gray-700 mr-12">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0 mr-3">
-                            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-                                <i class="fas fa-robot text-white"></i>
-                            </div>
-                        </div>
-                        <div class="flex-1">
-                            <div class="font-medium mb-1 text-gray-800 dark:text-gray-200">AI 비서</div>
-                            <div class="text-gray-700 dark:text-gray-300">
-                                안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?<br>
-                                예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="p-4 border-t border-gray-200 dark:border-gray-700">
-                <form id="questionForm" class="flex gap-2">
-                    <div class="relative flex-1">
-                        <input type="text" 
-                               id="userInput" 
-                               class="w-full p-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                               placeholder="무엇을 도와드릴까요?"
-                               required>
-                        <div id="loadingIndicator" class="hidden absolute right-4 top-1/2 transform -translate-y-1/2">
-                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-                        </div>
-                    </div>
-                    <button type="submit" 
-                            class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span>전송</span>
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </form>
-            </div>
-        </main>
-    </div>
-
-    <!-- Search results modal -->
-    <div id="searchModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">검색 결과</h3>
-                <button id="closeSearchModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div id="searchResults" class="space-y-4">
-                <!-- Search results will be inserted here -->
-            </div>
-        </div>
-    </div>
-
-    <!-- AI 스타일 설정 모달 -->
-    <div id="styleSettingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">AI 응답 길이 설정</h3>
-                <button id="closeStyleSettings" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="space-y-4">
-                <p class="text-gray-600 dark:text-gray-300">응답 길이를 선택해주세요:</p>
-                <div class="flex flex-col gap-3">
-                    <button id="conciseStyle" class="style-btn px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center justify-between">
-                        <div>
-                            <span class="font-bold">간결하게</span>
-                            <p class="text-sm text-green-100">핵심 내용만 간결하게 전달</p>
-                        </div>
-                        <i class="fas fa-compress-alt text-xl"></i>
-                    </button>
-                    <button id="normalStyle" class="style-btn px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-between">
-                        <div>
-                            <span class="font-bold">일반적으로</span>
-                            <p class="text-sm text-blue-100">균형잡힌 일반적인 길이</p>
-                        </div>
-                        <i class="fas fa-align-left text-xl"></i>
-                    </button>
-                    <button id="detailedStyle" class="style-btn px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center justify-between">
-                        <div>
-                            <span class="font-bold">상세하게</span>
-                            <p class="text-sm text-purple-100">자세하고 풍부한 설명</p>
-                        </div>
-                        <i class="fas fa-align-justify text-xl"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Export format modal -->
-    <div id="exportModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">대화 내보내기</h3>
-                <button id="closeExportModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="space-y-4">
-                <p class="text-gray-600 dark:text-gray-300">파일 형식을 선택해주세요:</p>
-                <div class="flex flex-col gap-3">
-                    <button id="exportTXT" class="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2">
-                        <i class="fas fa-file-alt"></i>
-                        <span>TXT 파일로 내보내기</span>
-                    </button>
-                    <button id="exportPDF" class="px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2">
-                        <i class="fas fa-file-pdf"></i>
-                        <span>PDF 파일로 내보내기</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Persona settings modal -->
-    <div id="personaModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 dark:text-white">AI 성격 설정</h3>
-                <button id="closePersonaModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="space-y-4">
-                <p class="text-gray-600 dark:text-gray-300">AI의 성격을 선택해주세요:</p>
-                <div class="flex flex-col gap-3">
-                    <button id="friendlyPersona" class="persona-btn px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-between">
-                        <div>
-                            <span class="font-bold">친근한 친구</span>
-                            <p class="text-sm text-blue-100">친구처럼 편하게 대화하는 스타일</p>
-                        </div>
-                        <i class="fas fa-smile text-xl"></i>
-                    </button>
-                    <button id="professionalPersona" class="persona-btn px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-between">
-                        <div>
-                            <span class="font-bold">전문가</span>
-                            <p class="text-sm text-gray-100">정중하고 전문적인 스타일</p>
-                        </div>
-                        <i class="fas fa-user-tie text-xl"></i>
-                    </button>
-                    <button id="cynicalPersona" class="persona-btn px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center justify-between">
-                        <div>
-                            <span class="font-bold">냉소적</span>
-                            <p class="text-sm text-purple-100">시니컬하고 귀찮아하는 스타일</p>
-                        </div>
-                        <i class="fas fa-meh-rolling-eyes text-xl"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // 다크모드 토글
-        const themeToggle = document.getElementById('themeToggle');
-        const themeIcon = document.getElementById('themeIcon');
-        const htmlElement = document.documentElement;  // <html> 요소 참조 추가
-        
-        function setTheme(isDark) {
-            if (isDark) {
-                htmlElement.classList.add('dark');  // <html> 요소에도 dark 클래스 추가
-                body.classList.add('dark');
-                themeIcon.classList.remove('fa-moon');
-                themeIcon.classList.add('fa-sun');
-            } else {
-                htmlElement.classList.remove('dark');  // <html> 요소에서 dark 클래스 제거
-                body.classList.remove('dark');
-                themeIcon.classList.remove('fa-sun');
-                themeIcon.classList.add('fa-moon');
-            }
-            localStorage.setItem('darkMode', isDark);
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <style>
         :root {
             --imessage-blue: #007AFF;
@@ -392,60 +160,6 @@
             align-self: flex-start;
         }
 
-        // 저장된 테마 설정 불러오기
-        const savedDarkMode = localStorage.getItem('darkMode') === 'true';
-        setTheme(savedDarkMode);
-
-        themeToggle.addEventListener('click', () => {
-            const isDark = !body.classList.contains('dark');
-            setTheme(isDark);
-        });
-
-        // 채팅 기능
-        function appendMessage(type, content, audioUrl = null) {
-            const chatContainer = document.getElementById('chatContainer');
-            const messageDiv = document.createElement('div');
-            const isDark = body.classList.contains('dark');
-            
-            messageDiv.className = `message ${type} mb-4 p-4 rounded-lg ${
-                type === 'user' 
-                    ? 'bg-blue-50 dark:bg-blue-900/30 ml-12' 
-                    : 'bg-gray-100 dark:bg-gray-700 mr-12'
-            }`;
-            
-            const icon = type === 'user' ? 'fa-user' : 'fa-robot';
-            const iconBg = type === 'user' ? 'bg-green-500' : 'bg-blue-500';
-            
-            let audioButton = '';
-            if (type === 'assistant' && audioUrl) {
-                audioButton = `
-                    <button onclick="toggleAudio(this, '${audioUrl}')" 
-                            class="mt-4 px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center gap-1 transition-colors">
-                        <i class="fas fa-play"></i>
-                        <span class="audio-text">음성으로 듣기</span>
-                    </button>
-                `;
-            }
-            
-            messageDiv.innerHTML = `
-                <div class="flex items-start">
-                    <div class="flex-shrink-0 mr-3">
-                        <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center">
-                            <i class="fas ${icon} text-white"></i>
-                        </div>
-                    </div>
-                    <div class="flex-1 space-y-2">
-                        <div class="font-medium text-gray-800 dark:text-gray-200">
-                            ${type === 'user' ? '나' : 'AI 비서'}
-                        </div>
-                        <div class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">${content}</div>
-                        ${audioButton}
-                    </div>
-                </div>
-            `;
-            
-            chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
         .message-content {
             padding: 0.8rem 1rem;
             border-radius: 20px;
@@ -628,214 +342,108 @@
             animation: moonToSun 0.5s ease;
         }
 
-        closeStyleSettings.addEventListener('click', () => {
-            styleSettingsModal.classList.add('hidden');
-        });
-
-        styleSettingsModal.addEventListener('click', (e) => {
-            if (e.target === styleSettingsModal) {
-                styleSettingsModal.classList.add('hidden');
-            }
-        });
-
-        async function updateStyle(style) {
-            try {
-                const response = await fetch('/update_ai_style', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ response_length: style })
-                });
-                
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    appendMessage('assistant', data.message);
-                    styleSettingsModal.classList.add('hidden');
-                    
-                    // 현재 선택된 스타일 저장
-                    localStorage.setItem('responseLength', style);
-                    
-                    // 버튼 스타일 업데이트
-                    updateStyleButtonStyles(style);
-                } else {
-                    appendMessage('error', data.message || 'AI 응답 길이 설정 중 오류가 발생했습니다.');
-                }
-            } catch (error) {
-                console.error('AI 응답 길이 설정 중 오류 발생:', error);
-                appendMessage('error', 'AI 응답 길이 설정 중 오류가 발생했습니다.');
-            }
-        }
-
-        function updateStyleButtonStyles(selectedStyle) {
-            document.querySelectorAll('.style-btn').forEach(btn => {
-                btn.classList.remove('ring-2', 'ring-white');
-            });
-            
-            const selectedBtn = document.getElementById(`${selectedStyle}Style`);
-            if (selectedBtn) {
-                selectedBtn.classList.add('ring-2', 'ring-white');
-            }
-        }
-
-        // 응답 길이 버튼에 이벤트 리스너 추가
-        document.getElementById('conciseStyle').addEventListener('click', () => updateStyle('concise'));
-        document.getElementById('normalStyle').addEventListener('click', () => updateStyle('normal'));
-        document.getElementById('detailedStyle').addEventListener('click', () => updateStyle('detailed'));
-
-        // 저장된 응답 길이 설정 로드
-        const savedStyle = localStorage.getItem('responseLength') || 'normal';
-        updateStyleButtonStyles(savedStyle);
-
-        // AI 페르소나 설정 관련
-        const personaModal = document.getElementById('personaModal');
-        const personaSettingsBtn = document.getElementById('personaSettingsBtn');
-        const closePersonaModal = document.getElementById('closePersonaModal');
-        
-        personaSettingsBtn.addEventListener('click', () => {
-            personaModal.classList.remove('hidden');
-        });
-        
-        closePersonaModal.addEventListener('click', () => {
-            personaModal.classList.add('hidden');
-        });
-        
-        personaModal.addEventListener('click', (e) => {
-            if (e.target === personaModal) {
-                personaModal.classList.add('hidden');
-            }
-        });
-
-        // 페르소나 버튼 이벤트 리스너
-        async function updatePersona(persona) {
-            try {
-                const response = await fetch('/update_persona', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ persona: persona })
-                });
-                
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    appendMessage('assistant', data.message);
-                    personaModal.classList.add('hidden');
-                    
-                    // 현재 선택된 페르소나 저장
-                    localStorage.setItem('selectedPersona', persona);
-                    
-                    // 버튼 스타일 업데이트
-                    updatePersonaButtonStyles(persona);
-                } else {
-                    appendMessage('error', data.message || 'AI 성격 설정 중 오류가 발생했습니다.');
-                }
-            } catch (error) {
-                console.error('AI 성격 설정 중 오류 발생:', error);
-                appendMessage('error', 'AI 성격 설정 중 오류가 발생했습니다.');
-            }
-        }
-
-        function updatePersonaButtonStyles(selectedPersona) {
-            document.querySelectorAll('.persona-btn').forEach(btn => {
-                btn.classList.remove('ring-2', 'ring-white');
-            });
-            
-            const selectedBtn = document.getElementById(`${selectedPersona}Persona`);
-            if (selectedBtn) {
-                selectedBtn.classList.add('ring-2', 'ring-white');
-            }
-        }
-
-        // 페르소나 버튼에 이벤트 리스너 추가
-        document.getElementById('friendlyPersona').addEventListener('click', () => updatePersona('friendly'));
-        document.getElementById('professionalPersona').addEventListener('click', () => updatePersona('professional'));
-        document.getElementById('cynicalPersona').addEventListener('click', () => updatePersona('cynical'));
-
-        // 저장된 페르소나 설정 로드
-        const savedPersona = localStorage.getItem('selectedPersona') || 'professional';
-        updatePersonaButtonStyles(savedPersona);
-    </script>
         .theme-toggle-icon.moon {
             animation: sunToMoon 0.5s ease;
         }
     </style>
 </head>
-<body>
-    <div class="chat-container">
-        <!-- 헤더 영역 -->
-        <div class="chat-header">
-            <h1 class="chat-title">나만의 AI 웹비서</h1>
-            <div class="header-controls">
-                <button id="responseLengthBtn" class="control-btn" title="응답 길이 설정">
-                    <i class="fas fa-align-left"></i>
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200" id="body">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <!-- 제목과 다크모드 설정 -->
+            <div class="flex justify-center items-center mb-2">
+                <h1 class="text-3xl font-bold text-gray-800 dark:text-white transition-colors duration-200">AI 개인비서</h1>
+                <button id="themeToggle" class="ml-4 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <i class="fas fa-moon text-gray-600 dark:text-gray-300" id="themeIcon"></i>
                 </button>
-                <button id="personaBtn" class="control-btn" title="페르소나 설정">
-                    <i class="fas fa-user"></i>
+            </div>
+            
+            <!-- 소제목 -->
+            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-200 mb-6 font-bold">당신의 일상을 더 스마트하게</p>
+            
+            <!-- 기능 버튼들 -->
+            <div class="flex justify-center items-center gap-4 flex-wrap">
+                <button id="personaSettingsBtn" 
+                        class="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-user-circle"></i>
+                    <span>AI 성격 설정</span>
                 </button>
-                <button id="voiceOutput" class="control-btn" title="음성 자동출력">
-                    <i class="fas fa-volume-up"></i>
+
+                <button id="clearContext" 
+                        class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-trash"></i>
+                    <span>대화 초기화</span>
                 </button>
-                <button id="themeToggle" class="control-btn" title="다크모드 설정">
-                    <i class="fas fa-moon theme-toggle-icon"></i>
+                
+                <button id="styleSettingsBtn" 
+                        class="px-3 py-1 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-sliders"></i>
+                    <span>응답 길이 설정</span>
                 </button>
-                <button id="privateMode" class="control-btn" title="비공개 모드">
-                    <i class="fas fa-user-secret"></i>
-                </button>
-                <button id="exportBtn" class="control-btn" title="대화 내보내기">
+
+                <button id="exportChat" 
+                        class="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded-full flex items-center gap-1 transition-colors">
                     <i class="fas fa-download"></i>
+                    <span>대화 내보내기</span>
                 </button>
-                <button id="searchBtn" class="control-btn" title="대화 내용 검색">
-                    <i class="fas fa-search"></i>
-                </button>
-                <button id="sessionBtn" class="control-btn" title="대화 세션 저장/불러오기">
-                    <i class="fas fa-save"></i>
-                </button>
-            </div>
-        </div>
 
-        <!-- AI 설정 메뉴 -->
-        <div id="aiSettingsMenu" class="settings-menu">
-            <div class="settings-section">
-                <h3>AI 페르소나</h3>
-                <div class="settings-buttons">
-                    <button data-persona="professional" class="settings-btn active">
-                        <i class="fas fa-briefcase"></i>
-                        전문가
-                    </button>
-                    <button data-persona="friendly" class="settings-btn">
-                        <i class="fas fa-smile"></i>
-                        친근한
-                    </button>
-                    <button data-persona="creative" class="settings-btn">
-                        <i class="fas fa-paint-brush"></i>
-                        창의적
+                <button id="privateMode" 
+                        class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-800 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-user-secret"></i>
+                    <span>비공개 모드</span>
+                </button>
+
+                <button id="voiceInput" 
+                        class="px-3 py-1 text-sm bg-yellow-500 hover:bg-yellow-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                    <i class="fas fa-microphone"></i>
+                    <span>음성 입력</span>
+                </button>
+
+                <!-- Search input -->
+                <div class="relative">
+                    <input type="text" 
+                           id="searchInput" 
+                           placeholder="대화 내용 검색..."
+                           class="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full w-40 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="searchButton"
+                            class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
+                        <i class="fas fa-search text-sm"></i>
                     </button>
                 </div>
             </div>
-            <div class="settings-section">
-                <h3>응답 길이</h3>
-                <div class="settings-buttons">
-                    <button data-length="short" class="settings-btn">
-                        <i class="fas fa-text-height fa-sm"></i>
-                        짧게
-                    </button>
-                    <button data-length="medium" class="settings-btn active">
-                        <i class="fas fa-text-height"></i>
-                        보통
-                    </button>
-                    <button data-length="long" class="settings-btn">
-                        <i class="fas fa-text-height fa-lg"></i>
-                        길게
-                    </button>
-                </div>
-            </div>
-        </div>
+        </header>
 
-        <!-- 설정 메뉴 -->
-        <div id="settingsMenu" class="settings-menu">
+        <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-200">
+            <div class="chat-container mb-6 p-6 h-[500px] overflow-y-auto" id="chatContainer">
+                <!-- 채팅 메시지 영역 -->
+            </div>
+            <!-- main.js가 요구하는 chatMessages ID 추가 -->
+            <div id="chatMessages" style="display:none;"></div>
+
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+                <form id="questionForm" class="flex gap-2">
+                    <div class="relative flex-1">
+                        <input type="text" id="user-input" class="w-full p-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200" placeholder="무엇을 도와드릴까요?" required>
+                        <div id="loadingIndicator" class="hidden absolute right-4 top-1/2 transform -translate-y-1/2">
+                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                        </div>
+                    </div>
+                    <button type="submit" 
+                            class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span>전송</span>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </main>
+
+        <!-- Settings Toggle Button -->
+        <button id="settingsToggle" class="px-3 py-1 text-sm bg-gray-400 hover:bg-gray-500 text-white rounded-full flex items-center gap-1 transition-colors" style="position:fixed;top:16px;right:16px;z-index:1001;">
+            <i class="fas fa-cog"></i>
+            <span>설정</span>
+        </button>
+        <!-- Settings Menu -->
+        <div id="settingsMenu" class="settings-menu" style="display:none;position:fixed;top:60px;right:16px;z-index:1001;">
             <button id="clearChat" class="settings-btn">
                 <i class="fas fa-trash"></i>
                 대화 내용 지우기
@@ -845,31 +453,119 @@
                 대화 내용 저장
             </button>
         </div>
+    </div>
 
-        <!-- 메시지 영역 -->
-        <div id="chatMessages" class="chat-messages"></div>
+    <!-- Search results modal -->
+    <div id="searchModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">검색 결과</h3>
+                <button id="closeSearchModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="searchResults" class="space-y-4">
+                <!-- Search results will be inserted here -->
+            </div>
+        </div>
+    </div>
 
-        <!-- 입력 영역 -->
-        <div class="chat-input">
-            <form id="questionForm" class="input-form">
-                <button type="button" id="voiceInput" class="control-btn voice-btn" title="음성 입력">
-                    <i class="fas fa-microphone"></i>
+    <!-- AI 스타일 설정 모달 -->
+    <div id="styleSettingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">AI 응답 길이 설정</h3>
+                <button id="closeStyleSettings" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
                 </button>
-                <textarea 
-                    id="user-input" 
-                    placeholder="메시지를 입력하세요..." 
-                    rows="1"
-                    required
-                ></textarea>
-                <button type="submit" class="send-btn">
-                    <i class="fas fa-paper-plane"></i>
+            </div>
+            <div class="space-y-4">
+                <p class="text-gray-600 dark:text-gray-300">응답 길이를 선택해주세요:</p>
+                <div class="flex flex-col gap-3">
+                    <button id="conciseStyle" class="style-btn px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">간결하게</span>
+                            <p class="text-sm text-green-100">핵심 내용만 간결하게 전달</p>
+                        </div>
+                        <i class="fas fa-compress-alt text-xl"></i>
+                    </button>
+                    <button id="normalStyle" class="style-btn px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">일반적으로</span>
+                            <p class="text-sm text-blue-100">균형잡힌 일반적인 길이</p>
+                        </div>
+                        <i class="fas fa-align-left text-xl"></i>
+                    </button>
+                    <button id="detailedStyle" class="style-btn px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">상세하게</span>
+                            <p class="text-sm text-purple-100">자세하고 풍부한 설명</p>
+                        </div>
+                        <i class="fas fa-align-justify text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export format modal -->
+    <div id="exportModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">대화 내보내기</h3>
+                <button id="closeExportModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
                 </button>
-            </form>
-            <div id="loadingIndicator" class="loading-indicator hidden">
-                <div class="loading-dots">
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                    <div class="dot"></div>
+            </div>
+            <div class="space-y-4">
+                <p class="text-gray-600 dark:text-gray-300">파일 형식을 선택해주세요:</p>
+                <div class="flex flex-col gap-3">
+                    <button id="exportTXT" class="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-file-alt"></i>
+                        <span>TXT 파일로 내보내기</span>
+                    </button>
+                    <button id="exportPDF" class="px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-file-pdf"></i>
+                        <span>PDF 파일로 내보내기</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Persona settings modal -->
+    <div id="personaModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">AI 성격 설정</h3>
+                <button id="closePersonaModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <p class="text-gray-600 dark:text-gray-300">AI의 성격을 선택해주세요:</p>
+                <div class="flex flex-col gap-3">
+                    <button id="friendlyPersona" class="persona-btn px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">친근한 친구</span>
+                            <p class="text-sm text-blue-100">친구처럼 편하게 대화하는 스타일</p>
+                        </div>
+                        <i class="fas fa-smile text-xl"></i>
+                    </button>
+                    <button id="professionalPersona" class="persona-btn px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">전문가</span>
+                            <p class="text-sm text-gray-100">정중하고 전문적인 스타일</p>
+                        </div>
+                        <i class="fas fa-user-tie text-xl"></i>
+                    </button>
+                    <button id="cynicalPersona" class="persona-btn px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center justify-between">
+                        <div>
+                            <span class="font-bold">냉소적</span>
+                            <p class="text-sm text-purple-100">시니컬하고 귀찮아하는 스타일</p>
+                        </div>
+                        <i class="fas fa-meh-rolling-eyes text-xl"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -880,5 +576,82 @@
     <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
     <script src="{{ url_for('static', filename='js/private-mode.js') }}"></script>
     <script src="{{ url_for('static', filename='js/speech.js') }}"></script>
+    <script>
+        // 다크모드 토글
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;  // <html> 요소 참조 추가
+        
+        function setTheme(isDark) {
+            if (isDark) {
+                htmlElement.classList.add('dark');  // <html> 요소에도 dark 클래스 추가
+                body.classList.add('dark');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            } else {
+                htmlElement.classList.remove('dark');  // <html> 요소에서 dark 클래스 제거
+                body.classList.remove('dark');
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+            }
+            localStorage.setItem('darkMode', isDark);
+        }
+
+        // 저장된 테마 설정 불러오기
+        const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+        setTheme(savedDarkMode);
+
+        themeToggle.addEventListener('click', () => {
+            const isDark = !body.classList.contains('dark');
+            setTheme(isDark);
+        });
+
+        // 채팅 기능
+        function appendMessage(type, content, audioUrl = null) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            const isDark = body.classList.contains('dark');
+            
+            messageDiv.className = `message ${type} mb-4 p-4 rounded-lg ${
+                type === 'user' 
+                    ? 'bg-blue-50 dark:bg-blue-900/30 ml-12' 
+                    : 'bg-gray-100 dark:bg-gray-700 mr-12'
+            }`;
+            
+            const icon = type === 'user' ? 'fa-user' : 'fa-robot';
+            const iconBg = type === 'user' ? 'bg-green-500' : 'bg-blue-500';
+            
+            let audioButton = '';
+            if (type === 'assistant' && audioUrl) {
+                audioButton = `
+                    <button onclick="toggleAudio(this, '${audioUrl}')" 
+                            class="mt-4 px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center gap-1 transition-colors">
+                        <i class="fas fa-play"></i>
+                        <span class="audio-text">음성으로 듣기</span>
+                    </button>
+                `;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 mr-3">
+                        <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center">
+                            <i class="fas ${icon} text-white"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        <div class="font-medium text-gray-800 dark:text-gray-200">
+                            ${type === 'user' ? '나' : 'AI 비서'}
+                        </div>
+                        <div class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">${content}</div>
+                        ${audioButton}
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
 </body>
-</html> 
+</html>
