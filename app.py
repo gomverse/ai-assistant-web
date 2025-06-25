@@ -100,6 +100,20 @@ AI_PERSONAS = {
     },
 }
 
+# 서비스 모듈 import
+from services.conversation_service import (
+    save_conversation_history,
+    load_conversation_history,
+)
+from services.tts_service import create_audio_response
+from services.pdf_service import export_conversation_to_pdf
+from services.session_service import (
+    save_session,
+    list_sessions,
+    load_session,
+    delete_session,
+)
+
 
 def save_conversation_history(history):
     """Save conversation history to a file"""
@@ -336,97 +350,6 @@ def update_persona():
                 "message": f"페르소나 설정 중 오류가 발생했습니다: {str(e)}",
             }
         )
-
-
-def create_audio_response(text, style_settings):
-    """Create audio response from text"""
-    try:
-        print("\n=== 음성 변환 시작 ===")
-        print(f"입력 텍스트 길이: {len(text)} 문자")
-        print(f"스타일 설정: {style_settings}")
-
-        # 텍스트가 비어있는 경우 처리
-        if not text or not text.strip():
-            print("텍스트가 비어있습니다.")
-            return None
-
-        # 긴 텍스트를 여러 청크로 나누기
-        def split_text(text, max_length=3000):  # 최대 길이를 3000자로 증가
-            # 문장 단위로 분리 (마침표, 느낌표, 물음표 기준)
-            sentences = []
-            current_sentence = ""
-
-            for char in text:
-                current_sentence += char
-                if char in [".", "!", "?"] and current_sentence.strip():
-                    sentences.append(current_sentence.strip())
-                    current_sentence = ""
-
-            if current_sentence.strip():  # 마지막 문장 처리
-                sentences.append(current_sentence.strip())
-
-            # 전체 텍스트를 하나의 청크로 처리
-            full_text = " ".join(sentences)
-
-            # 만약 텍스트가 너무 길다면 앞부분만 사용
-            if len(full_text) > max_length:
-                print(f"텍스트가 너무 깁니다. 처음 {max_length}자만 사용합니다.")
-                return [full_text[:max_length]]
-
-            return [full_text]
-
-        # 텍스트를 청크로 나누기
-        text_chunks = split_text(text)
-        print(f"텍스트가 {len(text_chunks)}개의 청크로 나뉘었습니다.")
-
-        if not text_chunks:
-            print("텍스트 청크가 없습니다.")
-            return None
-
-        # 첫 번째 청크 내용 출력 (디버깅용)
-        if text_chunks:
-            print(f"\n첫 번째 청크 내용 (처음 100자):")
-            print(text_chunks[0][:100])
-            print(f"첫 번째 청크 길이: {len(text_chunks[0])} 문자")
-
-        audio_filename = f"response_{uuid.uuid4()}.mp3"
-        audio_path = os.path.join("app/static/audio", audio_filename)
-
-        # 첫 번째 청크를 음성으로 변환
-        try:
-            first_chunk = text_chunks[0]
-            if not first_chunk or not first_chunk.strip():
-                print("첫 번째 청크가 비어있습니다.")
-                return None
-
-            print("\n=== TTS 변환 시도 ===")
-            print(f"변환할 텍스트 (처음 100자): {first_chunk[:100]}")
-
-            tts = NaverTTS(first_chunk)
-            tts.save(audio_path)
-
-            # 파일이 실제로 생성되었는지 확인
-            if os.path.exists(audio_path):
-                file_size = os.path.getsize(audio_path)
-                print(f"TTS 파일 생성 성공: {audio_path} (크기: {file_size} bytes)")
-                return f"/static/audio/{audio_filename}"
-            else:
-                print(f"TTS 파일이 생성되지 않았습니다: {audio_path}")
-                return None
-
-        except Exception as e:
-            print(f"\nTTS 생성 실패:")
-            print(f"에러 타입: {type(e).__name__}")
-            print(f"에러 메시지: {str(e)}")
-            traceback.print_exc()
-            return None
-
-    except Exception as e:
-        print(f"\n음성 변환 중 예외 발생:")
-        print(f"에러 타입: {type(e).__name__}")
-        print(f"에러 메시지: {str(e)}")
-        traceback.print_exc()
-        return None
 
 
 @app.route("/ask", methods=["POST"])
