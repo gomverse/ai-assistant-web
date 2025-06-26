@@ -1,6 +1,6 @@
 import unittest
 import os
-from services.pdf_service import export_conversation_to_pdf
+from services.pdf_service import export_conversation_to_pdf, export_conversation_to_txt
 
 
 class TestPDFService(unittest.TestCase):
@@ -9,7 +9,16 @@ class TestPDFService(unittest.TestCase):
             {"role": "user", "content": "안녕"},
             {"role": "assistant", "content": "안녕하세요!"},
         ]
-        filepath = export_conversation_to_pdf(history, export_dir="data/exports/test")
+        filepath = export_conversation_to_pdf(history)
+        self.assertTrue(os.path.exists(filepath))
+        os.remove(filepath)
+
+    def test_export_conversation_to_txt(self):
+        history = [
+            {"role": "user", "content": "안녕"},
+            {"role": "assistant", "content": "안녕하세요!"},
+        ]
+        filepath = export_conversation_to_txt(history)
         self.assertTrue(os.path.exists(filepath))
         os.remove(filepath)
 

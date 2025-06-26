@@ -1,179 +1,70 @@
 from flask import Flask, render_template, request, jsonify, send_file, session
-from dotenv import load_dotenv
 import os
 import json
 from datetime import datetime, timedelta
 from openai import OpenAI
 import traceback
 from navertts import NaverTTS
-import uuid
 import secrets
-from reportlab.pdfgen import canvas
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-import re
-import time
-from threading import Timer
 
-# Load environment variables
-load_dotenv()
-
-# Initialize Flask app with correct template folder
-app = Flask(__name__, template_folder="app/templates", static_folder="app/static")
-app.secret_key = secrets.token_hex(16)  # 세션을 위한 비밀키 설정
-app.config["SESSION_TYPE"] = "filesystem"  # 파일시스템 기반 세션 저장
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=5)  # 세션 유지 기간 설정
-
-# Maximum number of messages to keep in context
-MAX_CONTEXT_MESSAGES = 20  # 컨텍스트 메시지 개수를 20개로 제한
-
-# Configure OpenAI
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    print("경고: OPENAI_API_KEY가 설정되지 않았습니다!")
-else:
-    print(f"API 키 확인: {api_key[:6]}...")  # API 키의 처음 6자리만 출력
-
-# Initialize OpenAI client
-client = OpenAI(api_key=api_key)
-
-# Configure Naver TTS
-NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
-NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
-
-if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
-    print("경고: Naver TTS 설정이 되어있지 않습니다!")
-else:
-    print("Naver TTS 설정이 확인되었습니다.")
-    # NaverTTS 전역 설정
-    NaverTTS.configure(
-        client_id=NAVER_CLIENT_ID,
-        client_secret=NAVER_CLIENT_SECRET,
-        speaker="nara",  # 기본 화자를 'nara'로 설정
-    )
-
-# Ensure directories exist
-os.makedirs("data/logs", exist_ok=True)
-os.makedirs("data/conversations", exist_ok=True)  # 대화 내용 저장을 위한 디렉토리
-os.makedirs("app/static/audio", exist_ok=True)
-
-# Register Korean font for PDF
-pdfmetrics.registerFont(TTFont("NanumGothic", "app/static/fonts/NanumGothic.ttf"))
-
-# AI 응답 길이 설정
-AI_STYLE_SETTINGS = {
-    "concise": {
-        "name": "간결하게",
-        "description": "핵심 내용만 1문장으로 전달",
-        "instruction": "핵심 내용만 1문장으로 매우 간결하게 답변하세요. 절대로 1문장을 넘기지 마세요.",
-    },
-    "normal": {
-        "name": "일반적으로",
-        "description": "균형잡힌 일반적인 길이 (4문장 이내)",
-        "instruction": "필요한 내용을 4문장 이내로 설명하세요. 핵심 내용을 중심으로 균형있게 답변하되, 절대로 4문장을 넘기지 마세요.",
-    },
-    "detailed": {
-        "name": "상세하게",
-        "description": "자세하고 풍부한 설명 (7문장 이내)",
-        "instruction": "모든 내용을 상세하고 풍부하게 설명하세요. 관련 정보와 예시를 포함하여 자세히 답변하세요. 최소 4문장 이상, 최대 7문장 이내로 설명하세요.",
-    },
-}
-
-# AI 페르소나 설정
-AI_PERSONAS = {
-    "friendly": {
-        "name": "친근한 친구",
-        "description": "친구처럼 편하게 대화하는 스타일",
-        "instruction": "너는 사용자의 친한 친구야. 반말로 친근하게 대화하고, 이모티콘도 자주 써줘. 너무 격식있게 말하지 말고 편안하게 대화해줘.",
-    },
-    "professional": {
-        "name": "전문가",
-        "description": "정중하고 전문적인 스타일",
-        "instruction": "당신은 전문 비서입니다. 항상 정중하고 예의 바른 언어를 사용하며, 전문적인 지식을 바탕으로 명확하고 논리적으로 답변해 주세요.",
-    },
-    "cynical": {
-        "name": "냉소적",
-        "description": "시니컬하고 귀찮아하는 스타일",
-        "instruction": "너는 모든 일을 귀찮아하고 냉소적인 비서야. 반말을 쓰되 약간 무례하고 시니컬하게 대답해. 하지만 실제 도움이 되는 답변은 해줘야 해.",
-    },
-}
-
-# 서비스 모듈 import
+# 프로젝트 모듈 import
+from config import Config
 from services.conversation_service import (
     save_conversation_history,
     load_conversation_history,
 )
 from services.tts_service import create_audio_response
-from services.pdf_service import export_conversation_to_pdf
+from services.pdf_service import export_conversation_to_pdf, export_conversation_to_txt
 from services.session_service import (
     save_session,
     list_sessions,
     load_session,
     delete_session,
 )
+from utils import (
+    parse_notification_time,
+    search_in_conversation,
+    limit_conversation_history,
+    validate_session_name,
+)
+
+# 설정 검증 및 디렉토리 생성
+Config.validate_config()
+Config.setup_directories()
+
+# Initialize Flask app
+app = Flask(__name__, template_folder="app/templates", static_folder="app/static")
+app.secret_key = Config.SECRET_KEY
+app.config["SESSION_TYPE"] = Config.SESSION_TYPE
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
+    days=Config.PERMANENT_SESSION_LIFETIME_DAYS
+)
+
+# Initialize OpenAI client
+client = OpenAI(api_key=Config.OPENAI_API_KEY)
+
+# Configure Naver TTS
+if Config.NAVER_CLIENT_ID and Config.NAVER_CLIENT_SECRET:
+    print("Naver TTS 설정이 확인되었습니다.")
+    NaverTTS.configure(
+        client_id=Config.NAVER_CLIENT_ID,
+        client_secret=Config.NAVER_CLIENT_SECRET,
+        speaker=Config.NAVER_TTS_SPEAKER,
+    )
 
 
-def save_conversation_history(history):
-    """Save conversation history to a file"""
-    try:
-        # 절대 경로 사용
-        base_dir = os.path.abspath(os.path.dirname(__file__))
-        conversation_dir = os.path.join(base_dir, "data", "conversations")
-        conversation_file = os.path.join(conversation_dir, "conversation_history.json")
-
-        # 디렉토리가 없으면 생성
-        os.makedirs(conversation_dir, exist_ok=True)
-
-        # 저장 전 데이터 확인
-        print(f"저장할 대화 내용 수: {len(history)}")
-
-        with open(conversation_file, "w", encoding="utf-8") as f:
-            json.dump(history, f, ensure_ascii=False, indent=2)
-
-        # 저장 후 확인
-        print(f"대화 내용 저장 완료: {conversation_file}")
-        print(f"파일 크기: {os.path.getsize(conversation_file)} bytes")
-    except Exception as e:
-        print(f"대화 내용 저장 중 오류 발생: {str(e)}")
-        traceback.print_exc()  # 상세 오류 정보 출력
-
-
-def load_conversation_history():
-    """Load conversation history from a file"""
-    try:
-        # 절대 경로 사용
-        base_dir = os.path.abspath(os.path.dirname(__file__))
-        conversation_file = os.path.join(
-            base_dir, "data", "conversations", "conversation_history.json"
-        )
-
-        print(f"대화 내용 파일 경로: {conversation_file}")
-
-        if os.path.exists(conversation_file):
-            with open(conversation_file, "r", encoding="utf-8") as f:
-                history = json.load(f)
-                print(f"대화 내용 불러오기 완료: {len(history)}개의 메시지")
-                return history
-        else:
-            print(f"대화 내용 파일이 없음: {conversation_file}")
-            return []
-    except Exception as e:
-        print(f"대화 내용 불러오기 중 오류 발생: {str(e)}")
-        traceback.print_exc()  # 상세 오류 정보 출력
-        return []
+# 중복 함수 제거됨 - 서비스 모듈 사용
 
 
 def get_conversation_history():
-    """Get conversation history from session or file"""
+    """세션에서 대화 기록 가져오기 (없으면 파일에서 로드)"""
     if "conversation_history" not in session:
         session["conversation_history"] = load_conversation_history()
     return session["conversation_history"]
 
 
-def update_conversation_history(role, content, audio_url=None):
-    """Update conversation history in session and file"""
+def update_conversation_history(role: str, content: str, audio_url: str = None):
+    """대화 기록 업데이트 (세션 및 파일)"""
     try:
         history = get_conversation_history()
         message = {"role": role, "content": content}
@@ -182,12 +73,11 @@ def update_conversation_history(role, content, audio_url=None):
 
         history.append(message)
 
-        # Keep only the last MAX_CONTEXT_MESSAGES messages
-        if len(history) > MAX_CONTEXT_MESSAGES:
-            history = history[-MAX_CONTEXT_MESSAGES:]
+        # 최대 개수 제한
+        history = limit_conversation_history(history, Config.MAX_CONTEXT_MESSAGES)
 
         session["conversation_history"] = history
-        session.modified = True  # 세션 수정 플래그 설정
+        session.modified = True
 
         # 파일에도 저장
         save_conversation_history(history)
@@ -213,25 +103,7 @@ def clear_context():
     )
 
 
-def parse_notification_time(text):
-    """Parse notification time from text"""
-    time_pattern = r"(\d+)\s*(분|초|시간)\s*뒤"
-    match = re.search(time_pattern, text)
-    if not match:
-        return None
-
-    number = int(match.group(1))
-    unit = match.group(2)
-
-    # Convert to seconds
-    if unit == "초":
-        return number
-    elif unit == "분":
-        return number * 60
-    elif unit == "시간":
-        return number * 3600
-
-    return None
+# parse_notification_time 함수 제거됨 - utils 모듈에서 import
 
 
 @app.route("/schedule_notification", methods=["POST"])
@@ -270,7 +142,7 @@ def schedule_notification():
 @app.route("/get_ai_style_settings", methods=["GET"])
 def get_ai_style_settings():
     """Get available AI style settings"""
-    return jsonify({"status": "success", "settings": AI_STYLE_SETTINGS})
+    return jsonify({"status": "success", "settings": Config.AI_STYLE_SETTINGS})
 
 
 @app.route("/update_ai_style", methods=["POST"])
@@ -281,7 +153,7 @@ def update_ai_style():
         response_length = data.get("response_length", "normal")
 
         # Validate setting
-        if response_length not in AI_STYLE_SETTINGS:
+        if response_length not in Config.AI_STYLE_SETTINGS:
             return jsonify(
                 {"status": "error", "message": "잘못된 응답 길이 설정입니다."}
             )
@@ -292,7 +164,7 @@ def update_ai_style():
         return jsonify(
             {
                 "status": "success",
-                "message": f"AI 응답 길이가 '{AI_STYLE_SETTINGS[response_length]['name']}'(으)로 변경되었습니다.",
+                "message": f"AI 응답 길이가 '{Config.AI_STYLE_SETTINGS[response_length]['name']}'(으)로 변경되었습니다.",
                 "settings": {"response_length": response_length},
             }
         )
@@ -314,7 +186,7 @@ def get_personas():
             "status": "success",
             "personas": {
                 k: {"name": v["name"], "description": v["description"]}
-                for k, v in AI_PERSONAS.items()
+                for k, v in Config.AI_PERSONAS.items()
             },
         }
     )
@@ -327,7 +199,7 @@ def update_persona():
         data = request.json
         persona = data.get("persona", "professional")  # 기본값은 전문가 모드
 
-        if persona not in AI_PERSONAS:
+        if persona not in Config.AI_PERSONAS:
             return jsonify(
                 {"status": "error", "message": "잘못된 페르소나 설정입니다."}
             )
@@ -338,7 +210,7 @@ def update_persona():
         return jsonify(
             {
                 "status": "success",
-                "message": f"AI 페르소나가 '{AI_PERSONAS[persona]['name']}'(으)로 변경되었습니다.",
+                "message": f"AI 페르소나가 '{Config.AI_PERSONAS[persona]['name']}'(으)로 변경되었습니다.",
                 "persona": persona,
             }
         )
@@ -360,7 +232,7 @@ def ask():
         user_input = data.get("question", "")
         print(f"사용자 입력: {user_input}")
 
-        if not api_key:
+        if not Config.OPENAI_API_KEY:
             raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
 
         # Check for notification request
@@ -378,8 +250,8 @@ def ask():
 
         # Create system prompt from style and persona settings
         system_prompt = (
-            f"{AI_PERSONAS[current_persona]['instruction']}\n"
-            f"{AI_STYLE_SETTINGS[style_settings['response_length']]['instruction']}"
+            f"{Config.AI_PERSONAS[current_persona]['instruction']}\n"
+            f"{Config.AI_STYLE_SETTINGS[style_settings['response_length']]['instruction']}"
         )
         print(f"시스템 프롬프트: {system_prompt}")
 
@@ -398,7 +270,7 @@ def ask():
         try:
             print("\n=== API 호출 시작 ===")
             response = client.chat.completions.create(
-                model="gpt-4.1-nano", messages=messages
+                model=Config.OPENAI_MODEL, messages=messages
             )
             print("API 호출 성공")
         except Exception as api_error:
@@ -462,74 +334,31 @@ def export_conversation():
 
         # Get export format from request
         export_format = request.json.get("format", "txt")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         if export_format == "pdf":
-            filename = f"conversation_{timestamp}.pdf"
-            filepath = os.path.join("data/exports", filename)
-
-            # Ensure exports directory exists
-            os.makedirs("data/exports", exist_ok=True)
-
-            # Create PDF
-            c = canvas.Canvas(filepath, pagesize=A4)
-            c.setFont("NanumGothic", 12)
-
-            # Write title
-            c.setFont("NanumGothic", 16)
-            c.drawString(2 * cm, 28 * cm, "=== AI 개인비서 대화 내용 ===")
-
-            # Write timestamp
-            c.setFont("NanumGothic", 12)
-            c.drawString(
-                2 * cm,
-                27 * cm,
-                f"내보내기 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            )
-
-            y = 25 * cm
-            for msg in history:
-                if y < 5 * cm:  # New page if not enough space
-                    c.showPage()
-                    c.setFont("NanumGothic", 12)
-                    y = 28 * cm
-
-                role = "사용자" if msg["role"] == "user" else "AI 비서"
-                c.drawString(2 * cm, y, f"[{role}]")
-                y -= 0.7 * cm
-
-                # Word wrap for content
-                words = msg["content"].split()
-                line = ""
-                for word in words:
-                    if len(line + word) * 12 < (A4[0] - 4 * cm):
-                        line += word + " "
-                    else:
-                        c.drawString(2 * cm, y, line)
-                        y -= 0.7 * cm
-                        line = word + " "
-                if line:
-                    c.drawString(2 * cm, y, line)
-                y -= 1.5 * cm
-
-            c.save()
+            filepath = export_conversation_to_pdf(history)
+            filename = os.path.basename(filepath)
         else:  # txt format
-            filename = f"conversation_{timestamp}.txt"
-            filepath = os.path.join("data/exports", filename)
+            filepath = export_conversation_to_txt(history)
+            filename = os.path.basename(filepath)
 
-            # Ensure exports directory exists
-            os.makedirs("data/exports", exist_ok=True)
+        # Return file
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/pdf" if export_format == "pdf" else "text/plain",
+        )
 
-            # Write conversation to file
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write("=== AI 개인비서 대화 내용 ===\n\n")
-                f.write(
-                    f"내보내기 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                )
-
-                for msg in history:
-                    role = "사용자" if msg["role"] == "user" else "AI 비서"
-                    f.write(f"[{role}]\n{msg['content']}\n\n")
+    except Exception as e:
+        print(f"대화 내보내기 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return jsonify(
+            {
+                "status": "error",
+                "message": "대화 내용을 내보내는 중에 오류가 발생했습니다.",
+            }
+        )
 
         # Return file
         return send_file(
@@ -558,22 +387,13 @@ def search_conversation():
             return jsonify({"status": "error", "message": "검색어를 입력해주세요."})
 
         history = get_conversation_history()
-        results = []
-
-        for i, msg in enumerate(history):
-            if re.search(query, msg["content"], re.IGNORECASE):
-                # Add context (previous and next messages if available)
-                context = {
-                    "before": history[i - 1] if i > 0 else None,
-                    "match": msg,
-                    "after": history[i + 1] if i < len(history) - 1 else None,
-                }
-                results.append(context)
+        results = search_in_conversation(history, query)
 
         return jsonify({"status": "success", "results": results, "count": len(results)})
 
     except Exception as e:
         print(f"대화 검색 중 오류 발생: {str(e)}")
+        traceback.print_exc()
         return jsonify(
             {"status": "error", "message": "대화 내용 검색 중에 오류가 발생했습니다."}
         )
@@ -596,34 +416,27 @@ def load_conversation():
 
 
 @app.route("/save_session", methods=["POST"])
-def save_session():
+def save_current_session():
     """Save current conversation session with a name"""
     try:
         data = request.json
         session_name = data.get("name")
 
-        if not session_name:
-            return jsonify({"status": "error", "message": "세션 이름이 필요합니다."})
+        if not session_name or not validate_session_name(session_name):
+            return jsonify(
+                {"status": "error", "message": "유효하지 않은 세션 이름입니다."}
+            )
 
         # Get current conversation history
         history = get_conversation_history()
 
-        # Create sessions directory if it doesn't exist
-        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
-        os.makedirs(sessions_dir, exist_ok=True)
-
-        # Save session with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{session_name}_{timestamp}.json"
-        filepath = os.path.join(sessions_dir, filename)
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(
-                {"name": session_name, "timestamp": timestamp, "messages": history},
-                f,
-                ensure_ascii=False,
-                indent=2,
+        if not history:
+            return jsonify(
+                {"status": "error", "message": "저장할 대화 내용이 없습니다."}
             )
+
+        # Save session using service
+        filename = save_session(history, session_name)
 
         return jsonify(
             {
@@ -640,33 +453,19 @@ def save_session():
             {"status": "error", "message": "세션 저장 중 오류가 발생했습니다."}
         )
 
+    except Exception as e:
+        print(f"세션 저장 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        return jsonify(
+            {"status": "error", "message": "세션 저장 중 오류가 발생했습니다."}
+        )
+
 
 @app.route("/list_sessions", methods=["GET"])
-def list_sessions():
+def list_saved_sessions():
     """List all saved conversation sessions"""
     try:
-        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
-        if not os.path.exists(sessions_dir):
-            return jsonify({"status": "success", "sessions": []})
-
-        sessions = []
-        for filename in os.listdir(sessions_dir):
-            if filename.endswith(".json"):
-                filepath = os.path.join(sessions_dir, filename)
-                with open(filepath, "r", encoding="utf-8") as f:
-                    session_data = json.load(f)
-                    sessions.append(
-                        {
-                            "filename": filename,
-                            "name": session_data["name"],
-                            "timestamp": session_data["timestamp"],
-                            "message_count": len(session_data["messages"]),
-                        }
-                    )
-
-        # Sort sessions by timestamp (newest first)
-        sessions.sort(key=lambda x: x["timestamp"], reverse=True)
-
+        sessions = list_sessions()
         return jsonify({"status": "success", "sessions": sessions})
 
     except Exception as e:
@@ -678,19 +477,10 @@ def list_sessions():
 
 
 @app.route("/load_session/<filename>", methods=["POST"])
-def load_session(filename):
+def load_saved_session(filename):
     """Load a saved conversation session"""
     try:
-        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
-        filepath = os.path.join(sessions_dir, filename)
-
-        if not os.path.exists(filepath):
-            return jsonify(
-                {"status": "error", "message": "해당 세션을 찾을 수 없습니다."}
-            )
-
-        with open(filepath, "r", encoding="utf-8") as f:
-            session_data = json.load(f)
+        session_data = load_session(filename)
 
         # Update current session with loaded messages
         session["conversation_history"] = session_data["messages"]
@@ -704,6 +494,8 @@ def load_session(filename):
             }
         )
 
+    except FileNotFoundError:
+        return jsonify({"status": "error", "message": "해당 세션을 찾을 수 없습니다."})
     except Exception as e:
         print(f"세션 불러오기 중 오류 발생: {str(e)}")
         traceback.print_exc()
@@ -713,21 +505,14 @@ def load_session(filename):
 
 
 @app.route("/delete_session/<filename>", methods=["POST"])
-def delete_session(filename):
+def delete_saved_session(filename):
     """Delete a saved conversation session"""
     try:
-        sessions_dir = os.path.join(os.path.dirname(__file__), "data", "sessions")
-        filepath = os.path.join(sessions_dir, filename)
-
-        if not os.path.exists(filepath):
-            return jsonify(
-                {"status": "error", "message": "해당 세션을 찾을 수 없습니다."}
-            )
-
-        os.remove(filepath)
-
+        delete_session(filename)
         return jsonify({"status": "success", "message": "대화 세션이 삭제되었습니다."})
 
+    except FileNotFoundError:
+        return jsonify({"status": "error", "message": "해당 세션을 찾을 수 없습니다."})
     except Exception as e:
         print(f"세션 삭제 중 오류 발생: {str(e)}")
         traceback.print_exc()
