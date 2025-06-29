@@ -28,7 +28,13 @@
             </div>
             
             <!-- 소제목 -->
-            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-200 mb-6 font-bold">당신의 일상을 더 스마트하게</p>
+            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-200 mb-4 font-bold">당신의 일상을 더 스마트하게</p>
+            
+            <!-- 대화 유지 안내 -->
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                <i class="fas fa-info-circle mr-1"></i>
+                새로고침해도 대화 내용이 자동으로 유지됩니다
+            </p>
             
             <!-- 기능 버튼들 -->
             <div class="flex justify-center items-center gap-4 flex-wrap">
@@ -78,23 +84,7 @@
 
         <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-200">
             <div class="chat-container mb-6 p-6 h-[500px] overflow-y-auto" id="chatContainer">
-                <!-- 시작 메시지 -->
-                <div class="message assistant mb-4 p-4 rounded-lg bg-gray-100 dark:bg-gray-700 mr-12">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0 mr-3">
-                            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-                                <i class="fas fa-robot text-white"></i>
-                            </div>
-                        </div>
-                        <div class="flex-1">
-                            <div class="font-medium mb-1 text-gray-800 dark:text-gray-200">AI 비서</div>
-                            <div class="text-gray-700 dark:text-gray-300">
-                                안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?<br>
-                                예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- 대화 내용이 여기에 동적으로 추가됩니다 -->
             </div>
 
             <div class="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -312,8 +302,61 @@
             });
         }
 
+        // 대화 내용 저장 및 복원 관련 함수들
+        function saveConversationToLocalStorage() {
+            const chatContainer = document.getElementById('chatContainer');
+            const messages = [];
+            
+            // 현재 채팅 컨테이너의 모든 메시지 수집
+            chatContainer.querySelectorAll('.message').forEach(messageDiv => {
+                const isUser = messageDiv.classList.contains('user');
+                const contentDiv = messageDiv.querySelector('.whitespace-pre-wrap');
+                const audioUrl = messageDiv.querySelector('button[onclick]')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+                
+                if (contentDiv) {
+                    messages.push({
+                        type: isUser ? 'user' : 'assistant',
+                        content: contentDiv.textContent,
+                        audioUrl: audioUrl || null,
+                        timestamp: Date.now()
+                    });
+                }
+            });
+            
+            localStorage.setItem('ai_chat_conversation', JSON.stringify(messages));
+        }
+
+        function loadConversationFromLocalStorage() {
+            try {
+                const savedConversation = localStorage.getItem('ai_chat_conversation');
+                if (savedConversation) {
+                    const messages = JSON.parse(savedConversation);
+                    const chatContainer = document.getElementById('chatContainer');
+                    
+                    // 기존 메시지 제거 (환영 메시지 등)
+                    chatContainer.innerHTML = '';
+                    
+                    // 저장된 메시지들 복원
+                    messages.forEach(message => {
+                        appendMessage(message.type, message.content, message.audioUrl, false); // false = localStorage 저장 안함
+                    });
+                    
+                    console.log(`${messages.length}개의 이전 대화를 복원했습니다.`);
+                }
+            } catch (error) {
+                console.error('대화 내용 복원 중 오류 발생:', error);
+                // 오류 발생 시 저장된 데이터 제거
+                localStorage.removeItem('ai_chat_conversation');
+            }
+        }
+
+        function clearConversationFromLocalStorage() {
+            localStorage.removeItem('ai_chat_conversation');
+            console.log('저장된 대화 내용을 삭제했습니다.');
+        }
+
         // 채팅 메시지 추가 함수 수정
-        function appendMessage(type, content, audioUrl = null) {
+        function appendMessage(type, content, audioUrl = null, saveToLocalStorage = true) {
             const chatContainer = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
             const isDark = body.classList.contains('dark');
@@ -360,6 +403,11 @@
             
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            // localStorage에 대화 내용 저장 (복원 시에는 저장하지 않음)
+            if (saveToLocalStorage) {
+                saveConversationToLocalStorage();
+            }
         }
 
         // 오디오 재생 관련 변수들
@@ -529,6 +577,10 @@
 
         // 대화 초기화 기능
         document.getElementById('clearContext').addEventListener('click', async () => {
+            if (!confirm('모든 대화 내용을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+                return;
+            }
+            
             try {
                 const response = await fetch('/clear_context', {
                     method: 'POST',
@@ -539,6 +591,9 @@
                     // 채팅 컨테이너 비우기
                     const chatContainer = document.getElementById('chatContainer');
                     chatContainer.innerHTML = '';
+                    
+                    // localStorage에서 대화 내용 삭제
+                    clearConversationFromLocalStorage();
                     
                     // 시작 메시지 다시 추가
                     appendMessage('assistant', '안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?\n예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"');
@@ -956,10 +1011,16 @@
                     const chatContainer = document.getElementById('chatContainer');
                     chatContainer.innerHTML = '';
                     
-                    // 저장된 메시지들 추가
+                    // localStorage 지우기 (새로운 세션을 로드하므로)
+                    clearConversationFromLocalStorage();
+                    
+                    // 저장된 메시지들 추가 (localStorage에 저장하지 않음)
                     data.messages.forEach(message => {
-                        appendMessage(message.role, message.content, message.audio_url);
+                        appendMessage(message.role, message.content, message.audio_url, false);
                     });
+                    
+                    // 로드된 세션의 내용을 localStorage에 저장
+                    saveConversationToLocalStorage();
                     
                     appendMessage('assistant', data.message);  // 성공 메시지 표시
                     sessionModal.classList.add('hidden');  // 모달 닫기
@@ -995,6 +1056,29 @@
                 alert('세션 삭제 중 오류가 발생했습니다.');
             }
         }
+
+        // 페이지 로드 시 초기화 함수
+        function initializePage() {
+            // 저장된 대화 내용 복원
+            loadConversationFromLocalStorage();
+            
+            // 대화 내용이 없으면 환영 메시지 표시
+            const chatContainer = document.getElementById('chatContainer');
+            if (chatContainer.children.length === 0) {
+                appendMessage('assistant', '안녕하세요! 저는 당신의 AI 개인비서입니다. 무엇을 도와드릴까요?\n예시: "오늘 할 일 계획 세워줘", "건강한 식단 추천해줘", "30분 운동 루틴 알려줘"');
+            }
+            
+            // 세션 목록 로드
+            loadSessions();
+        }
+
+        // 페이지 로드 완료 시 초기화 실행
+        document.addEventListener('DOMContentLoaded', initializePage);
+        
+        // 페이지 언로드 시 현재 대화 내용 저장 (백업)
+        window.addEventListener('beforeunload', function() {
+            saveConversationToLocalStorage();
+        });
     </script>
 </body>
 </html> 
