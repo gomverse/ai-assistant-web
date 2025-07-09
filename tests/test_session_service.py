@@ -41,7 +41,8 @@ class TestSessionService(unittest.TestCase):
 
         # 세션 로드
         session_data = load_session(filename, Config.SESSIONS_DIR)
-        self.assertEqual(session_data, history)
+        self.assertEqual(session_data["messages"], history)
+        self.assertEqual(session_data["name"], "unittest")
 
         # 세션 삭제
         delete_session(filename, Config.SESSIONS_DIR)

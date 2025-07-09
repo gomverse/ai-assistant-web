@@ -2,9 +2,11 @@
 대화 세션 관리 서비스
 """
 
-import os
-import json
 from typing import List, Dict, Any
+import os    return sessions
+
+
+def load_session(filename: str, sessions_dir: str = None) -> Dict[str, Any]:
 from datetime import datetime
 from config import Config
 
@@ -54,12 +56,31 @@ def list_sessions(sessions_dir: str = None) -> List[Dict[str, Any]]:
                         }
                     )
             except (json.JSONDecodeError, KeyError) as e:
-                print(f"세션 파일 '{filename}' 읽기 오류: {e}")
+                print(f"세션 파일 읽기 오류 {filename}: {e}")
                 continue
 
-    # 최신 세션이 먼저 오도록 정렬
     sessions.sort(key=lambda x: x["timestamp"], reverse=True)
     return sessions
+
+
+def load_session(filename: str) -> Dict[str, Any]:
+    """세션을 로드하고 세션 데이터 반환"""
+    filepath = os.path.join(Config.SESSIONS_DIR, filename)
+    if not os.path.exists(filepath):
+        raise FileNotFoundError("해당 세션을 찾을 수 없습니다.")
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        session_data = json.load(f)
+    return session_data
+
+
+def delete_session(filename: str) -> None:
+    """세션 파일 삭제"""
+    filepath = os.path.join(Config.SESSIONS_DIR, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    else:
+        raise FileNotFoundError("해당 세션을 찾을 수 없습니다.")
 
 
 def load_session(filename: str, sessions_dir: str = None) -> Dict[str, Any]:
